@@ -1,0 +1,1901 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Scrawl</title>
+<meta name="description" content="Draw it. Guess it. A multiplayer drawing game for friends. No accounts needed.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gluten:wght@500;700;800&family=Lexend:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap">
+<style>
+/* Layout: sticker desk. Grid-paper ground, ink-outlined panels with hard offset shadows, and the white drawing sheet in the middle as the hero. */
+:root{
+  --ground:#e9edfb; --grid:rgba(52,72,170,.09);
+  --ink:#141b45; --ink-2:#4b5488; --card:#ffffff; --card-2:#f1f3fd;
+  --line:#141b45; --shadow:#141b45;
+  --blue:#2f5bff; --pink:#ff4f8b; --sun:#ffc929; --mint:#14b088;
+  --mint-bg:#d6f5ea; --sun-bg:#fff2bf; --pink-bg:#ffe0eb;
+  --on-accent:#141b45; --on-blue:#ffffff;
+  --display:"Gluten","Chalkboard SE","Comic Sans MS",cursive;
+  --body:"Lexend",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"DM Mono",ui-monospace,Menlo,monospace;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ground:#0f1330; --grid:rgba(130,150,255,.07);
+  --ink:#eef0ff; --ink-2:#a3aad8; --card:#1a2047; --card-2:#232a58;
+  --line:#4c56a0; --shadow:#04061a;
+  --blue:#5b7dff; --pink:#ff6b9d; --sun:#ffd34d; --mint:#2fd3a6;
+  --mint-bg:#113d35; --sun-bg:#3b3214; --pink-bg:#40182b;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --ground:#0f1330; --grid:rgba(130,150,255,.07);
+  --ink:#eef0ff; --ink-2:#a3aad8; --card:#1a2047; --card-2:#232a58;
+  --line:#4c56a0; --shadow:#04061a;
+  --blue:#5b7dff; --pink:#ff6b9d; --sun:#ffd34d; --mint:#2fd3a6;
+  --mint-bg:#113d35; --sun-bg:#3b3214; --pink-bg:#40182b;
+  color-scheme:dark;
+}
+html,body{height:100%}
+[hidden]{display:none!important}
+img{max-width:100%}
+body{margin:0;
+  background-color:var(--ground); color:var(--ink); font-family:var(--body); font-size:15px; line-height:1.45;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;
+}
+*{box-sizing:border-box}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.app{min-height:100%;display:flex;flex-direction:column}
+.panel{background:var(--card);border:2px solid var(--line);border-radius:var(--r);box-shadow:4px 4px 0 var(--shadow)}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-2)}
+.muted{color:var(--ink-2)}
+h1,h2,h3{text-wrap:balance;margin:0}
+h3{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:9px 16px;border:2px solid var(--line);border-radius:12px;
+  background:var(--card);box-shadow:3px 3px 0 var(--shadow);font-weight:600;cursor:pointer;transition:transform .08s,box-shadow .08s;white-space:nowrap}
+.btn:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 var(--shadow)}
+.btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--shadow)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:3px 3px 0 var(--shadow)}
+.btn.primary{background:var(--blue);color:var(--on-blue)}
+.btn.hot{background:var(--pink);color:var(--on-accent)}
+.btn.sun{background:var(--sun);color:var(--on-accent)}
+.btn.big{padding:14px 20px;font-size:17px;width:100%}
+.btn.sm{padding:6px 11px;font-size:13px;box-shadow:2px 2px 0 var(--shadow)}
+.btn svg{width:18px;height:18px}
+.icon-btn{display:inline-grid;place-items:center;width:38px;height:38px;border:2px solid var(--line);border-radius:10px;background:var(--card);box-shadow:2px 2px 0 var(--shadow);cursor:pointer}
+.icon-btn svg{width:20px;height:20px}
+svg.i{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+input[type=text],select,textarea{background:var(--card-2);border:2px solid var(--line);border-radius:10px;padding:9px 12px;width:100%}
+textarea{resize:vertical;min-height:64px}
+
+/* top bar */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px}
+.brand{font-family:var(--display);font-weight:800;font-size:28px;letter-spacing:-.01em;line-height:1;display:flex;align-items:center;gap:6px}
+.brand i{width:10px;height:10px;border-radius:50%;background:var(--pink);border:2px solid var(--line);display:inline-block;transform:translateY(-8px)}
+.top-right{display:flex;align-items:center;gap:10px}
+.conn{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--ink-2);padding:6px 10px;border-radius:999px;background:var(--card);border:2px solid var(--line)}
+.conn b{width:8px;height:8px;border-radius:50%;background:var(--ink-2)}
+.conn.on b{background:var(--mint)}
+.conn.off b{background:var(--pink)}
+
+/* home */
+.home{flex:1;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:40px;align-items:center;max-width:1120px;width:100%;margin:0 auto;padding-inline:16px;padding-block:20px 40px}
+.wordmark{font-family:var(--display);font-weight:800;font-size:clamp(72px,12vw,148px);line-height:.85;letter-spacing:-.02em;position:relative;display:inline-block}
+.wordmark svg{position:absolute;left:2%;bottom:-18px;width:96%;height:28px}
+.tag{font-size:clamp(18px,2.2vw,22px);margin:30px 0 22px;max-width:28ch;font-weight:500}
+.perks{list-style:none;padding:0;margin:0;display:grid;gap:10px;max-width:48ch}
+.perks li{display:flex;gap:12px;align-items:flex-start}
+.perks .dot{flex:none;width:26px;height:26px;border-radius:8px;border:2px solid var(--line);display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:14px;margin-top:-2px}
+.home-card{padding:22px;display:grid;gap:16px}
+.me-row{display:flex;gap:16px;align-items:center}
+.avatar-xl{flex:none;width:84px;height:84px;display:grid;place-items:center;background:var(--card-2);border:2px solid var(--line);border-radius:18px}
+.me-fields{flex:1;min-width:0;display:grid;gap:8px}
+.me-fields label{font-size:12px;font-weight:600;color:var(--ink-2)}
+.swatches{display:flex;flex-wrap:wrap;gap:6px}
+.swatch{width:24px;height:24px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0}
+.swatch[aria-pressed="true"]{box-shadow:0 0 0 3px var(--card),0 0 0 5px var(--ink)}
+.join-row{display:flex;gap:8px}
+.join-row input{font-family:var(--mono)}
+.rooms{display:grid;gap:10px;border-top:2px dashed var(--line);padding-top:14px}
+.room-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border:2px solid var(--line);border-radius:12px;background:var(--card-2)}
+.room-row .info{flex:1;min-width:0}
+.room-row .code{font-family:var(--mono);font-size:14px}
+.room-row .who{font-size:12px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stack{display:flex}
+.stack span{margin-left:-8px;display:inline-grid}
+.stack span:first-child{margin-left:0}
+.empty{color:var(--ink-2);font-size:14px;margin:0}
+.note{background:var(--sun-bg);border:2px solid var(--line);border-radius:12px;padding:12px 14px;font-size:14px}
+
+/* game */
+.game{flex:1;min-height:0;display:grid;grid-template-columns:230px minmax(0,1fr) 300px;grid-template-rows:auto minmax(0,1fr);
+  grid-template-areas:"players word chat" "players center chat";gap:14px;padding-inline:16px;padding-block:0 16px}
+.app.in-game{height:100%}
+.wordbar{grid-area:word;display:flex;align-items:center;gap:14px;padding:10px 14px;min-height:68px}
+.wb-left{display:grid;gap:2px;min-width:110px}
+.room-code{font-family:var(--mono);font-size:13px}
+.wb-word{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;text-align:center}
+.the-word{font-family:var(--display);font-weight:800;font-size:30px;line-height:1}
+.slots{display:flex;flex-wrap:wrap;justify-content:center;gap:5px;align-items:flex-end}
+.slot{width:22px;height:30px;border-bottom:3px solid var(--ink);font-family:var(--display);font-weight:800;font-size:24px;line-height:28px;text-align:center;text-transform:uppercase}
+.slot.lit{color:var(--blue)}
+.slot.gap{border:0;width:12px}
+.slot.lit-char{border:0;width:auto}
+.wcount{font-family:var(--mono);font-size:12px;color:var(--ink-2);margin-left:6px}
+.status-text{font-weight:600;font-size:16px}
+.timer{position:relative;width:52px;height:52px;flex:none}
+.timer svg{width:52px;height:52px;transform:rotate(-90deg)}
+.timer .track{stroke:var(--card-2)}
+.timer .bar{stroke:var(--blue);transition:stroke-dashoffset .2s linear}
+.timer.urgent .bar{stroke:var(--pink)}
+.timer span{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums}
+
+.players{grid-area:players;padding:14px;display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto}
+.plist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.prow{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:11px;border:2px solid transparent;position:relative}
+.prow.me{border-color:var(--line);background:var(--card-2)}
+.prow.ok{background:var(--mint-bg)}
+.prow.drawing{background:var(--sun-bg)}
+.prow .rank{font-family:var(--mono);font-size:12px;width:18px;color:var(--ink-2)}
+.prow .pinfo{flex:1;min-width:0}
+.prow .pname{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;gap:5px;align-items:center}
+.prow .pname svg{width:15px;height:15px;flex:none}
+.prow .pscore{font-family:var(--mono);font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.prow .gain{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--mint)}
+.you{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-2)}
+.host-tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:8px;border-top:2px dashed var(--line)}
+
+.center{grid-area:center;display:flex;flex-direction:column;align-items:center;gap:12px;min-height:0}
+.stage{position:relative;width:min(100%,calc((100vh - 290px) * 1.3333));width:min(100%,calc((100dvh - 290px) * 1.3333));min-width:min(100%,420px);aspect-ratio:4/3;max-width:100%;
+  border:2px solid var(--line);border-radius:var(--r);box-shadow:5px 5px 0 var(--shadow);overflow:hidden;background:#fff}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#preview{touch-action:none}
+.stage.can-draw #preview{cursor:none}
+.floaters{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.floater{position:absolute;bottom:-40px;display:flex;flex-direction:column;align-items:center;animation:rise 2.4s ease-out forwards}
+.floater .e{font-size:34px;line-height:1}
+.floater .n{font-size:11px;font-weight:600;background:var(--card);color:var(--ink);border:1.5px solid var(--line);border-radius:999px;padding:1px 7px;margin-top:2px}
+.floater svg{width:34px;height:34px;fill:var(--pink);stroke:var(--line);stroke-width:1.5}
+@keyframes rise{0%{transform:translateY(0) scale(.6);opacity:0}15%{opacity:1;transform:translateY(-60px) scale(1)}100%{transform:translateY(-420px) scale(1.05);opacity:0}}
+
+.overlay{position:absolute;inset:0;display:grid;place-items:center;padding:16px;overflow:auto;
+  background:color-mix(in srgb,var(--ground) 82%,transparent);backdrop-filter:blur(3px)}
+.overlay.mini{inset:10px auto auto 50%;transform:translateX(-50%);padding:0;background:none;backdrop-filter:none;overflow:visible}
+.ov-card{background:var(--card);border:2px solid var(--line);border-radius:18px;box-shadow:5px 5px 0 var(--shadow);padding:20px;width:100%;max-width:560px;display:grid;gap:14px;margin:auto}
+.ov-title{font-family:var(--display);font-weight:800;font-size:30px;line-height:1.05}
+.lobby-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.big-code{font-family:var(--mono);font-size:24px;line-height:1.2;word-break:break-all}
+.settings{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.field{display:grid;gap:4px;font-size:12px;font-weight:600;color:var(--ink-2)}
+.field select{color:var(--ink);font-weight:500;padding:7px 9px}
+.field.wide{grid-column:1/-1}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:5px 11px;border:2px solid var(--line);border-radius:999px;background:var(--card-2);font-size:13px;font-weight:500;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--sun);color:var(--on-accent)}
+.chip:disabled{cursor:default}
+.actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.actions .hint{font-size:13px;color:var(--ink-2)}
+.choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+.choice{display:grid;gap:6px;padding:16px 12px;border:2px solid var(--line);border-radius:14px;background:var(--card-2);box-shadow:3px 3px 0 var(--shadow);cursor:pointer;text-align:center;transition:transform .08s}
+.choice:hover{transform:translate(-1px,-2px) rotate(-1deg)}
+.choice b{font-family:var(--display);font-size:24px;font-weight:700;line-height:1.1}
+.choice .lvl{font-size:12px;font-weight:600}
+.lvl-0{color:var(--mint)} .lvl-1{color:var(--blue)} .lvl-2{color:var(--pink)}
+.center-col{display:grid;justify-items:center;gap:10px;text-align:center}
+.count-big{font-family:var(--mono);font-size:14px;color:var(--ink-2)}
+.gains{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:220px;overflow:auto}
+.gains li{display:flex;align-items:center;gap:10px;font-size:14px}
+.gains .gname{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.gains .gpts{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.gains .gpts.pos{color:var(--mint)}
+.reveal-word{font-family:var(--display);font-weight:800;font-size:40px;line-height:1;color:var(--blue)}
+.podium{display:flex;align-items:flex-end;justify-content:center;gap:10px}
+.pod{display:grid;justify-items:center;gap:6px;width:31%;max-width:150px}
+.pod .block{width:100%;border:2px solid var(--line);border-radius:12px 12px 4px 4px;display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:28px;color:var(--on-accent)}
+.pod .pn{font-weight:600;font-size:14px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pod .ps{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+.gallery figure{margin:0;border:2px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card-2)}
+.gallery img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#fff}
+.gallery figcaption{padding:5px 8px;font-size:12px;display:flex;justify-content:space-between;gap:6px}
+.gallery figcaption b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spinner{width:34px;height:34px;border:4px solid var(--card-2);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.confetti i{position:absolute;top:-12px;width:9px;height:14px;border:1.5px solid var(--line);animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 14px;padding:10px 12px;width:min(100%,900px)}
+.tgroup{display:flex;gap:4px;align-items:center}
+.tool{width:38px;height:38px;display:grid;place-items:center;border:2px solid var(--line);border-radius:10px;background:var(--card-2);cursor:pointer;padding:0}
+.tool svg{width:20px;height:20px}
+.tool[aria-pressed="true"]{background:var(--sun);color:var(--on-accent);box-shadow:2px 2px 0 var(--shadow)}
+.tool .sz{background:currentColor;border-radius:50%}
+.palette{display:grid;grid-template-columns:repeat(9,22px);gap:4px}
+.pc{width:22px;height:22px;border:2px solid var(--line);border-radius:6px;cursor:pointer;padding:0}
+.pc[aria-pressed="true"]{outline:3px solid var(--blue);outline-offset:1px}
+.custom-color{position:relative;width:38px;height:38px;border:2px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;
+  background:conic-gradient(#f44,#fd3,#4d6,#3cf,#66f,#e4e,#f44)}
+.custom-color input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.tb-note{width:100%;text-align:center;font-size:12px;color:var(--ink-2);margin-top:-4px}
+.reactbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;padding:8px 12px}
+.react{width:40px;height:40px;font-size:22px;border:2px solid var(--line);border-radius:10px;background:var(--card-2);cursor:pointer;padding:0;line-height:1}
+.react:active{transform:scale(.92)}
+.like svg{fill:var(--pink);stroke:var(--line)}
+.like[aria-pressed="true"]{background:var(--pink-bg)}
+
+.chat{grid-area:chat;display:flex;flex-direction:column;min-height:0;padding:14px;gap:10px}
+.chat-log{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding-right:4px}
+.line{font-size:14px;padding:4px 8px;border-radius:8px;overflow-wrap:anywhere}
+.line .who{font-weight:600;margin-right:4px}
+.line .pd{display:inline-block;width:9px;height:9px;border-radius:50%;border:1.5px solid var(--line);margin-right:5px;vertical-align:0}
+.line.sys{color:var(--ink-2);font-size:13px;font-style:italic}
+.line.good{background:var(--mint-bg);font-weight:600;font-style:normal;color:var(--ink)}
+.line.close{background:var(--sun-bg);font-style:normal;color:var(--ink)}
+.line.inner{background:var(--mint-bg)}
+.line.warn{background:var(--pink-bg);font-style:normal;color:var(--ink)}
+.chat form{display:flex;gap:6px}
+.chat input{flex:1;min-width:0}
+.banner{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);max-width:min(560px,calc(100% - 32px));z-index:10;
+  background:var(--sun-bg);border:2px solid var(--line);border-radius:12px;box-shadow:3px 3px 0 var(--shadow);padding:10px 14px;font-size:14px}
+.toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:20;background:var(--ink);color:var(--ground);padding:8px 14px;border-radius:10px;font-size:14px;font-weight:500}
+
+@media (max-width:960px){
+  .app.in-game{height:auto}
+  .game{display:flex;flex-direction:column;height:auto}
+  .wordbar{order:1}
+  .center{order:2}
+  .chat{order:3;height:340px}
+  .players{order:4;overflow:visible}
+  .stage{width:100%;min-width:0}
+  .plist{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+}
+@media (max-width:820px){
+  .home{grid-template-columns:1fr;gap:28px}
+  .home.invited .home-card{order:-1}
+  .settings{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:700px){
+  .stage.tall{aspect-ratio:auto;min-height:min(600px,86vh)}
+  .stage.tall canvas{object-fit:contain}
+  .wordbar{flex-wrap:wrap;gap:8px}
+  .wb-word{order:3;flex-basis:100%}
+  .wb-left{flex:1}
+  .the-word{font-size:24px}
+  .slot{width:18px;height:26px;font-size:20px;line-height:24px}
+  .palette{grid-template-columns:repeat(9,20px)}
+  .pc{width:20px;height:20px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand">Scrawl<i></i></div>
+    <div class="top-right">
+      <span class="conn" id="conn" hidden><b></b><span id="connText">Connecting</span></span>
+      <button class="icon-btn" id="muteBtn" aria-label="Turn sound off" title="Sound"></button>
+    </div>
+  </header>
+
+  <section class="home" id="home">
+    <div class="hero">
+      <h1 class="wordmark">Scrawl
+        <svg viewBox="0 0 400 28" preserveAspectRatio="none" aria-hidden="true"><path d="M4 18 C60 4, 90 26, 150 14 S 250 4, 300 16 S 370 24, 396 8" fill="none" stroke="var(--pink)" stroke-width="7" stroke-linecap="round"/></svg>
+      </h1>
+      <p class="tag">Draw it. Guess it. Out-doodle your friends from anywhere.</p>
+      <ul class="perks">
+        <li><span class="dot" style="background:var(--sun);color:var(--on-accent)">1</span><span>Create a room and send the invite link. Friends open it, type a name and they're in. No accounts, no downloads.</span></li>
+        <li><span class="dot" style="background:var(--mint);color:var(--on-accent)">2</span><span>Pick an easy, medium or hard word. Harder words are worth up to 1.6× the points.</span></li>
+        <li><span class="dot" style="background:var(--pink);color:var(--on-accent)">3</span><span>Fill bucket, shapes, undo and redo, plus hints, close-guess alerts, streaks and live reactions.</span></li>
+        <li><span class="dot" style="background:var(--blue);color:var(--on-blue)">4</span><span>Every drawing goes into a gallery at the end, so you can see who drew the best one.</span></li>
+      </ul>
+    </div>
+    <div class="home-card panel">
+      <div class="me-row">
+        <div class="avatar-xl" id="meAvatar"></div>
+        <div class="me-fields">
+          <label for="nameInput">Your name</label>
+          <input type="text" id="nameInput" maxlength="18" placeholder="Pick a nickname" autocomplete="off">
+          <div class="swatches" id="swatches" role="group" aria-label="Your colour"></div>
+        </div>
+      </div>
+      <button class="btn sm" id="shuffleAv" style="justify-self:start">New face</button>
+      <button class="btn primary big" id="createBtn">Create a room</button>
+      <form class="join-row" id="joinForm">
+        <input type="text" id="codeInput" placeholder="Room code, e.g. lucky-otter-42" autocomplete="off" aria-label="Room code">
+        <button class="btn" type="submit">Join</button>
+      </form>
+      <div class="note" id="inviteNote" hidden></div>
+      <div class="rooms">
+        <h3>How to play with friends</h3>
+        <p class="empty">Whoever creates the room is the host and keeps this tab open. Everyone else opens the invite link, or enters the room code above. Want to warm up first? <button class="btn sm" id="soloBtn" style="margin-left:4px">Open the sketchbook</button></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="game" id="game" hidden>
+    <div class="wordbar panel">
+      <div class="wb-left">
+        <span class="eyebrow" id="roundLabel">Lobby</span>
+        <span class="room-code" id="roomCodeLabel"></span>
+      </div>
+      <div class="wb-word" id="wordDisplay"></div>
+      <div class="timer" id="timer" hidden>
+        <svg viewBox="0 0 52 52"><circle class="track" cx="26" cy="26" r="21" fill="none" stroke-width="5"/><circle class="bar" id="timerBar" cx="26" cy="26" r="21" fill="none" stroke-width="5" stroke-linecap="round" stroke-dasharray="131.95" stroke-dashoffset="0"/></svg>
+        <span id="timerNum">0</span>
+      </div>
+    </div>
+
+    <aside class="players panel">
+      <h3>Players</h3>
+      <ol class="plist" id="playerList"></ol>
+      <div class="host-tools" id="hostTools"></div>
+      <button class="btn sm" id="leaveBtn">Leave room</button>
+    </aside>
+
+    <div class="center">
+      <div class="stage" id="stage">
+        <canvas id="board" width="1000" height="750" aria-label="Drawing board"></canvas>
+        <canvas id="preview" width="1000" height="750"></canvas>
+        <div class="floaters" id="floaters"></div>
+        <div class="overlay" id="overlay" hidden></div>
+      </div>
+      <div class="toolbar panel" id="toolbar" hidden>
+        <div class="tgroup" role="group" aria-label="Tools" id="toolGroup"></div>
+        <div class="tgroup" role="group" aria-label="Brush size" id="sizeGroup"></div>
+        <div class="palette" id="palette" role="group" aria-label="Colours"></div>
+        <label class="custom-color" title="Custom colour"><input type="color" id="customColor" value="#2f5bff" aria-label="Custom colour"></label>
+        <div class="tgroup" id="actGroup"></div>
+        <div class="tb-note" id="tbNote" hidden></div>
+      </div>
+      <div class="reactbar panel" id="reactbar" hidden></div>
+    </div>
+
+    <aside class="chat panel">
+      <h3 id="chatTitle">Guesses &amp; chat</h3>
+      <div class="chat-log" id="chatLog" aria-live="polite"></div>
+      <form id="chatForm">
+        <input type="text" id="chatInput" maxlength="100" autocomplete="off" placeholder="Type your guess here…" aria-label="Guess or chat">
+        <button class="btn primary sm" type="submit">Send</button>
+      </form>
+    </aside>
+  </section>
+  <div class="banner" id="banner" hidden></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(() => {
+'use strict';
+const W = 1000, H = 750;
+const $ = (s, r = document) => r.querySelector(s);
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') e.className = v;
+    else if (k === 'text') e.textContent = v;
+    else if (k === 'html') e.innerHTML = v;
+    else if (k === 'style') e.style.cssText = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? '' : v);
+  }
+  for (const k of kids) if (k != null) e.append(k);
+  return e;
+};
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('scrawl.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('scrawl.' + k, JSON.stringify(v)); } catch {} }
+};
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const okColor = c => (typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c)) ? c : '#2f5bff';
+const clampStr = (s, n) => String(s ?? '').replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁠-⁯﻿]/g, '').slice(0, n);
+const norm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+const isLetter = c => /[\p{L}\p{N}]/u.test(c);
+const ROOM_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
+const PEER_PREFIX = 'scrawl-v1-';
+
+/* ---------- peer-to-peer room: the creator's browser is the hub ---------- */
+function createNet(code, asHost) {
+  return new Promise((resolve, reject) => {
+    const handlers = new Map(), peerFns = new Set(), connFns = new Set(), closeFns = new Set();
+    const conns = new Map();
+    const hubId = PEER_PREFIX + code;
+    let peer, conn = null, myId = null, isConnected = false, dead = false, settled = false;
+    let pres = new Map(), myPres = {}, list = Object.freeze([]);
+    const fail = err => { if (settled) return; settled = true; dead = true; try { peer.destroy(); } catch {} reject(err); };
+    const ok = () => { if (settled) return; settled = true; resolve(api); };
+    const deliver = (topic, data, from) => {
+      const fns = handlers.get(topic); if (!fns) return;
+      const m = { topic, data, peer: from, sameTab: from === myId, isMe: from === myId, kind: 'viewer', by: null, guest: false };
+      for (const f of [...fns]) f(m);
+    };
+    const rebuild = () => {
+      if (myId) pres.set(myId, myPres);
+      list = Object.freeze([...pres].map(([p, presence]) => Object.freeze({ peer: p, presence, sameTab: p === myId, isMe: p === myId, kind: 'viewer', by: null, guest: false })));
+      const ch = { peers: list, joined: [], left: [], updated: [] };
+      peerFns.forEach(f => f(ch));
+    };
+    const setConnected = v => { isConnected = v; connFns.forEach(f => f(v)); };
+    const broadcastPeers = () => {
+      if (myId) pres.set(myId, myPres);
+      const l = [...pres];
+      for (const c of conns.values()) if (c.open) c.send({ k: 'peers', l });
+      rebuild();
+    };
+    const api = {
+      hubId,
+      get id() { return myId; },
+      emit(topic, data) {
+        if (dead) return Promise.resolve();
+        if (asHost) {
+          setTimeout(() => deliver(topic, data, myId), 0);
+          const msg = { k: 'ev', topic, data, peer: myId };
+          for (const c of conns.values()) if (c.open) c.send(msg);
+        } else if (conn && conn.open) conn.send({ k: 'ev', topic, data });
+        return Promise.resolve();
+      },
+      on(topic, fn) {
+        if (!handlers.has(topic)) handlers.set(topic, new Set());
+        handlers.get(topic).add(fn);
+        return () => handlers.get(topic).delete(fn);
+      },
+      peers() { return list; },
+      onPeers(fn) { peerFns.add(fn); queueMicrotask(() => fn({ peers: list, joined: list, left: [], updated: [] })); return () => peerFns.delete(fn); },
+      presence(patch) {
+        const next = { ...myPres };
+        for (const [k, v] of Object.entries(patch)) { if (v === null) delete next[k]; else next[k] = v; }
+        myPres = next;
+        if (asHost) broadcastPeers();
+        else { if (conn && conn.open) conn.send({ k: 'pres', p: myPres }); rebuild(); }
+        return Promise.resolve();
+      },
+      connected() { return isConnected; },
+      onConnection(fn) { connFns.add(fn); queueMicrotask(() => fn(isConnected)); return () => connFns.delete(fn); },
+      onClosed(fn) { closeFns.add(fn); },
+      leave() { dead = true; try { peer.destroy(); } catch {} return Promise.resolve(); }
+    };
+    const timer = setTimeout(() => fail(Object.assign(new Error('timeout'), { type: 'timeout' })), 20000);
+
+    if (asHost) {
+      peer = new Peer(hubId, { debug: 0 });
+      peer.on('open', id => { clearTimeout(timer); myId = id; setConnected(true); rebuild(); ok(); });
+      peer.on('connection', c => {
+        c.on('open', () => { conns.set(c.peer, c); c.send({ k: 'peers', l: [...pres] }); });
+        c.on('data', msg => {
+          if (!msg || typeof msg !== 'object') return;
+          if (msg.k === 'ev' && typeof msg.topic === 'string') {
+            const out = { k: 'ev', topic: msg.topic, data: msg.data, peer: c.peer };
+            for (const o of conns.values()) if (o.open) o.send(out);
+            deliver(msg.topic, msg.data, c.peer);
+          } else if (msg.k === 'pres' && msg.p && typeof msg.p === 'object') {
+            pres.set(c.peer, msg.p); broadcastPeers();
+          }
+        });
+        const gone = () => { conns.delete(c.peer); if (pres.delete(c.peer)) broadcastPeers(); };
+        c.on('close', gone);
+        c.on('error', gone);
+      });
+      peer.on('disconnected', () => { if (!dead) { try { peer.reconnect(); } catch {} } });
+      peer.on('error', err => { if (!settled) { clearTimeout(timer); fail(err); } });
+    } else {
+      peer = new Peer({ debug: 0 });
+      peer.on('open', id => {
+        myId = id;
+        conn = peer.connect(hubId, { reliable: true });
+        conn.on('open', () => { clearTimeout(timer); setConnected(true); conn.send({ k: 'pres', p: myPres }); rebuild(); ok(); });
+        conn.on('data', msg => {
+          if (!msg || typeof msg !== 'object') return;
+          if (msg.k === 'ev' && typeof msg.topic === 'string' && typeof msg.peer === 'string') deliver(msg.topic, msg.data, msg.peer);
+          else if (msg.k === 'peers' && Array.isArray(msg.l)) {
+            pres = new Map(msg.l.filter(x => Array.isArray(x) && typeof x[0] === 'string' && x[1] && typeof x[1] === 'object'));
+            rebuild();
+          }
+        });
+        conn.on('close', () => { setConnected(false); if (!dead) closeFns.forEach(f => f()); });
+      });
+      peer.on('disconnected', () => { if (!dead && isConnected) { try { peer.reconnect(); } catch {} } });
+      peer.on('error', err => { if (!settled) { clearTimeout(timer); fail(err); } });
+    }
+  });
+}
+const MULT = [1, 1.3, 1.6];
+const LVL = ['Easy', 'Medium', 'Hard'];
+const REACTS = ['😂', '🔥', '👏', '😮', '🤔', '💀'];
+const TOPICS = ['state','stroke','sync','chat','got','close','pick','hint','reveal','react','vote','hello','words'];
+
+/* ---------- icons ---------- */
+const I = (d, extra = '') => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true" ${extra}>${d}</svg>`;
+const ICON = {
+  pen: I('<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 7l3 3"/>'),
+  eraser: I('<path d="M9 20h11"/><path d="M4 15l9-9 6 6-7 7H8z"/><path d="M8.5 10.5l6 6"/>'),
+  fill: I('<path d="M4 11l7-7 7 7-7 7z"/><path d="M4 11h14"/><path d="M20 15c0 1.5-1.2 2.5-1.2 3.7a1.2 1.2 0 002.4 0C21.2 17.5 20 16.5 20 15z"/>'),
+  line: I('<path d="M5 19L19 5"/>'),
+  rect: I('<rect x="4" y="6" width="16" height="12" rx="1.5"/>'),
+  ell: I('<ellipse cx="12" cy="12" rx="8.5" ry="6.5"/>'),
+  undo: I('<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-4"/>'),
+  redo: I('<path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 000 10h4"/>'),
+  trash: I('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
+  filled: I('<rect x="4" y="6" width="16" height="12" rx="1.5" fill="currentColor"/>'),
+  crown: I('<path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z" fill="var(--sun)"/>'),
+  pencil: I('<path d="M4 20l4-1 11-11-3-3L5 16z" fill="var(--sun)"/>'),
+  check: I('<path d="M5 12l5 5 9-10" stroke="var(--mint)" stroke-width="3"/>'),
+  heart: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.5-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.5-7 10-7 10z"/></svg>`,
+  copy: I('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3"/>'),
+  sound: I('<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 010 6M18.5 6.5a8 8 0 010 11"/>'),
+  mute: I('<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9l5 6M21 9l-5 6"/>'),
+};
+
+/* ---------- avatars ---------- */
+const EYES = 6, MOUTHS = 5, AV_N = EYES * MOUTHS;
+const AV_COLORS = ['#ff4f8b','#2f5bff','#14b088','#ffb020','#8b5cf6','#ef4444','#06b6d4','#84cc16','#f97316','#f472b6'];
+function avatarSVG(color, a, size = 36) {
+  a = (((a | 0) % AV_N) + AV_N) % AV_N;
+  const e = a % EYES, m = Math.floor(a / EYES), k = '#141b45';
+  const eyes = [
+    `<circle cx="14" cy="18" r="2.6" fill="${k}"/><circle cx="26" cy="18" r="2.6" fill="${k}"/>`,
+    `<path d="M11 19q3-4 6 0M23 19q3-4 6 0" stroke="${k}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`,
+    `<circle cx="14" cy="18" r="2.6" fill="${k}"/><path d="M23 18h6" stroke="${k}" stroke-width="2.2" stroke-linecap="round"/>`,
+    `<circle cx="14" cy="18" r="4.2" fill="#fff" stroke="${k}" stroke-width="1.6"/><circle cx="26" cy="18" r="4.2" fill="#fff" stroke="${k}" stroke-width="1.6"/><circle cx="15" cy="18.5" r="1.8" fill="${k}"/><circle cx="27" cy="18.5" r="1.8" fill="${k}"/>`,
+    `<path d="M11 17h6M23 17h6" stroke="${k}" stroke-width="2.2" stroke-linecap="round"/>`,
+    `<path d="M11 14.5l5 2.5M29 14.5l-5 2.5" stroke="${k}" stroke-width="2" stroke-linecap="round"/><circle cx="15" cy="20" r="2" fill="${k}"/><circle cx="25" cy="20" r="2" fill="${k}"/>`
+  ][e];
+  const mouths = [
+    `<path d="M14 26q6 6 12 0" stroke="${k}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`,
+    `<ellipse cx="20" cy="28" rx="3.2" ry="3.6" fill="${k}"/>`,
+    `<path d="M15 28h10" stroke="${k}" stroke-width="2.2" stroke-linecap="round"/>`,
+    `<path d="M13 25q7 9 14 0z" fill="${k}"/>`,
+    `<path d="M14 27q3-3 6 0t6 0" stroke="${k}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`
+  ][m];
+  return `<svg viewBox="0 0 40 40" width="${size}" height="${size}" aria-hidden="true"><path d="M20 3c9 0 16 6 16 16s-6 18-16 18S4 30 4 20 11 3 20 3z" fill="${okColor(color)}" stroke="${k}" stroke-width="2"/>${eyes}${mouths}</svg>`;
+}
+const avatarEl = (c, a, size) => el('span', { class: 'av', html: avatarSVG(c, a, size), style: 'display:inline-grid;flex:none' });
+
+/* ---------- words ---------- */
+const CATS = { animals:'Animals', food:'Food', objects:'Objects', places:'Places', actions:'Actions', nature:'Nature', fantasy:'Fantasy', sports:'Sports', tech:'Tech' };
+const RAW = {
+  animals: ['cat,dog,fish,bird,cow,pig,duck,frog,snake,bee,lion,horse,mouse,owl,bear,rabbit,turtle,whale,shark,spider',
+            'giraffe,penguin,kangaroo,octopus,zebra,camel,dolphin,flamingo,squirrel,peacock,crocodile,hedgehog,jellyfish,parrot,koala,lobster,snail,bat,gorilla,seahorse',
+            'platypus,chameleon,narwhal,armadillo,porcupine,sloth,axolotl,pelican,walrus,mole,hummingbird,stingray,raccoon,woodpecker,anteater'],
+  food: ['apple,banana,pizza,cake,egg,bread,cheese,cookie,carrot,grapes,ice cream,burger,donut,lemon,cherry,milk,corn,popcorn',
+         'spaghetti,sushi,pancake,taco,hot dog,pineapple,watermelon,broccoli,cupcake,sandwich,pretzel,croissant,mushroom,avocado,french fries,lollipop,coconut,noodles',
+         'lasagna,dumpling,fortune cookie,smoothie,kebab,guacamole,cotton candy,gingerbread,pomegranate,burrito,cinnamon roll,fondue'],
+  objects: ['chair,book,phone,key,clock,cup,hat,shoe,ball,bed,lamp,door,glasses,umbrella,pencil,scissors,sock,spoon,candle,balloon',
+            'backpack,toothbrush,ladder,headphones,camera,guitar,anchor,trophy,wallet,hammer,magnet,microscope,suitcase,teapot,lightbulb,skateboard,envelope,piano,compass,mirror',
+            'chandelier,typewriter,hourglass,accordion,stethoscope,thermometer,binoculars,paperclip,parachute,metronome,harmonica,saxophone,wheelbarrow,kaleidoscope'],
+  places: ['house,beach,school,park,farm,island,castle,zoo,bridge,road',
+           'library,airport,volcano,desert,hospital,lighthouse,stadium,jungle,waterfall,igloo,pyramid,museum,bakery,cave,circus',
+           'Eiffel Tower,observatory,laundromat,greenhouse,aquarium,skyscraper,Great Wall,subway,campsite,windmill,colosseum,Stonehenge'],
+  actions: ['run,sleep,swim,jump,cry,eat,dance,sing,read,fly',
+            'juggling,fishing,skiing,surfing,sneezing,yawning,painting,cooking,climbing,whistling,bowling,camping,knitting,snoring',
+            'sleepwalking,meditating,procrastinating,photobomb,moonwalk,brainstorming,hibernating,daydreaming,eavesdropping,breakdancing'],
+  nature: ['sun,moon,star,cloud,rain,flower,tree,leaf,snow,fire,rainbow,mountain',
+           'tornado,lightning,cactus,sunflower,iceberg,snowflake,river,palm tree,rose,coral,seashell,puddle',
+           'eclipse,aurora,avalanche,constellation,tsunami,quicksand,stalactite,tumbleweed,meteor shower,geyser'],
+  fantasy: ['ghost,robot,alien,dragon,crown,wizard,angel,monster',
+            'unicorn,mermaid,vampire,zombie,pirate,ninja,knight,witch,fairy,superhero,genie,treasure,spaceship,magic wand',
+            'werewolf,centaur,phoenix,cyclops,leprechaun,time machine,haunted house,kraken,minotaur,sphinx,yeti,griffin'],
+  sports: ['soccer,tennis,golf,boxing,bicycle,kite,frisbee,skates',
+           'basketball,baseball,volleyball,archery,karate,trampoline,snowboard,hockey,marathon,wrestling,yoga,scuba diving',
+           'fencing,curling,pole vault,water polo,gymnastics,triathlon,sumo,bobsled,referee,javelin'],
+  tech: ['computer,television,rocket,car,train,bus,airplane,boat',
+         'laptop,keyboard,satellite,drone,helicopter,submarine,battery,traffic light,tractor,printer,joystick,elevator,escalator',
+         'wifi,password,computer virus,bluetooth,hologram,3D printer,virtual reality,selfie stick,QR code,screenshot,spam,cloud storage']
+};
+const WORDS = {};
+for (const [k, tiers] of Object.entries(RAW)) WORDS[k] = tiers.map(t => t.split(',').map(s => s.trim()).filter(Boolean));
+const ADJ = ['lucky','sunny','fuzzy','brave','sneaky','jolly','mighty','swift','cosmic','dizzy','zesty','witty'];
+const NOUN = ['otter','panda','falcon','llama','badger','koala','tiger','moose','gecko','walrus','yak','puffin'];
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const genCode = () => `${pick(ADJ)}-${pick(NOUN)}-${10 + Math.floor(Math.random() * 90)}`;
+
+/* ---------- hashing / distance ---------- */
+async function hash(s) {
+  try {
+    const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+    return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('').slice(0, 32);
+  } catch {
+    let h1 = 0x811c9dc5, h2 = 0x01000193;
+    for (const ch of s) { const c = ch.codePointAt(0); h1 = Math.imul(h1 ^ c, 16777619); h2 = Math.imul(h2 + c, 2246822507); }
+    return (h1 >>> 0).toString(16) + (h2 >>> 0).toString(16);
+  }
+}
+function lev(a, b) {
+  a = Array.from(a); b = Array.from(b);
+  if (Math.abs(a.length - b.length) > 2) return 9;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/* ---------- sound ---------- */
+let actx = null, muted = store.get('muted', false);
+function tone(freqs, { dur = .13, type = 'triangle', gap = .07, vol = .08 } = {}) {
+  if (muted) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = actx.currentTime;
+    freqs.forEach((f, i) => {
+      const o = actx.createOscillator(), g = actx.createGain(), t = t0 + i * gap;
+      o.type = type; o.frequency.value = f;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+      o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur + .02);
+    });
+  } catch {}
+}
+const SFX = {
+  correct: () => tone([660, 880, 1320], { gap: .08 }),
+  other: () => tone([520, 780], { gap: .06, vol: .05 }),
+  turn: () => tone([392, 523, 659, 784], { gap: .09 }),
+  tick: () => tone([1000], { dur: .05, type: 'square', vol: .025 }),
+  close: () => tone([440, 415], { gap: .1, vol: .05 }),
+  end: () => tone([523, 659, 784, 1046, 784, 1046], { gap: .12, dur: .2 }),
+  join: () => tone([700], { dur: .08, vol: .04 }),
+  reveal: () => tone([330, 262], { gap: .12, vol: .05 }),
+};
+function renderMute() {
+  const b = $('#muteBtn');
+  b.innerHTML = muted ? ICON.mute : ICON.sound;
+  b.setAttribute('aria-label', muted ? 'Turn sound on' : 'Turn sound off');
+}
+$('#muteBtn').addEventListener('click', () => { muted = !muted; store.set('muted', muted); renderMute(); if (!muted) SFX.join(); });
+renderMute();
+
+/* ---------- global state ---------- */
+let room = null, user = null, R = null, roomCode = '', usingLobby = false, unsubs = [];
+let solo = false, myPeer = null, joinedAt = 0, stateReceived = false, helloSent = false, needSync = false;
+let profile = store.get('profile', null) || { n: '', c: pick(AV_COLORS), a: Math.floor(Math.random() * AV_N) };
+const freshState = () => ({
+  v: 0, host: null, phase: 'lobby',
+  settings: { rounds: 3, time: 80, choices: 3, hints: 2, cats: Object.keys(CATS), custom: 'off' },
+  round: 0, turn: 1, order: [], ti: 0, drawer: null, dur: 0, left: 0, members: [], sc: {},
+  word: null, hints: {}, reveal: null, likes: 0, reason: ''
+});
+let S = freshState();
+let isHost = false, deadline = 0, lastBeat = 0, sendT = null, hostLikes = new Set();
+let seen = { turn: -1, phase: '' }, seenOk = new Set(), lastPresent = new Set();
+let myWord = null, myChoices = null, picking = false, lastPick = null, pickSentAt = 0;
+let hintsSent = 0, gotTurn = -1, myGuess = '', votedTurn = -1, lastRevealSent = 0, lastTickSec = -1;
+let customWords = [], customText = '', usedWords = new Set(), gallery = [], revealCache = null;
+let strokeBuf = [], syncParts = new Map(), pendingSync = null;
+let lobbyHidden = false, practiceWord = '';
+
+/* ---------- canvas ---------- */
+const cv = $('#board'), ctx = cv.getContext('2d', { willReadFrequently: true });
+const pv = $('#preview'), pctx = pv.getContext('2d');
+let ops = [], redoStack = [], opSeq = 0;
+let tool = 'pen', color = '#000000', size = 8, filled = false, cur = null, pendingPts = [], flushT = null, hover = null;
+
+function clearPaper() { ctx.save(); ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+function replay() { clearPaper(); for (const op of ops) drawOp(op, ctx); }
+function strokePts(c, p, col, sz, from = 0) {
+  const n = p.length / 2;
+  if (!n) return;
+  c.strokeStyle = col; c.fillStyle = col; c.lineWidth = sz; c.lineCap = 'round'; c.lineJoin = 'round';
+  if (n === 1 || (from === 0 && n === 1)) { c.beginPath(); c.arc(p[0], p[1], sz / 2, 0, Math.PI * 2); c.fill(); return; }
+  const s = Math.max(0, from - 1);
+  c.beginPath(); c.moveTo(p[s * 2], p[s * 2 + 1]);
+  for (let i = s + 1; i < n; i++) c.lineTo(p[i * 2], p[i * 2 + 1]);
+  c.stroke();
+}
+function drawShape(c, op) {
+  const [x0, y0, x1, y1] = op.p;
+  c.strokeStyle = op.c; c.fillStyle = op.c; c.lineWidth = op.s; c.lineCap = 'round'; c.lineJoin = 'round';
+  c.beginPath();
+  if (op.t === 'line') { c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke(); return; }
+  if (op.t === 'rect') c.rect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+  else c.ellipse((x0 + x1) / 2, (y0 + y1) / 2, Math.abs(x1 - x0) / 2 || .5, Math.abs(y1 - y0) / 2 || .5, 0, 0, Math.PI * 2);
+  op.f ? c.fill() : c.stroke();
+}
+function drawOp(op, c) {
+  if (op.t === 'pen') strokePts(c, op.p, op.c, op.s, 0);
+  else if (op.t === 'fill') floodFill(op.p[0], op.p[1], op.c);
+  else if (op.t === 'clear') clearPaper();
+  else drawShape(c, op);
+}
+function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function floodFill(x, y, hex) {
+  x = Math.round(x); y = Math.round(y);
+  if (x < 0 || y < 0 || x >= W || y >= H) return;
+  const img = ctx.getImageData(0, 0, W, H), d = img.data;
+  const [r, g, b] = hexRgb(hex);
+  const i0 = (y * W + x) * 4, sr = d[i0], sg = d[i0 + 1], sb = d[i0 + 2];
+  if (Math.abs(sr - r) + Math.abs(sg - g) + Math.abs(sb - b) < 8) return;
+  const match = i => Math.abs(d[i] - sr) + Math.abs(d[i + 1] - sg) + Math.abs(d[i + 2] - sb) <= 110;
+  const seenPx = new Uint8Array(W * H);
+  const stack = [x, y];
+  while (stack.length) {
+    const sy = stack.pop(), sx = stack.pop(), row = sy * W;
+    let px = sx;
+    if (seenPx[row + px] || !match((row + px) * 4)) continue;
+    while (px > 0 && !seenPx[row + px - 1] && match((row + px - 1) * 4)) px--;
+    let up = false, down = false;
+    while (px < W && !seenPx[row + px] && match((row + px) * 4)) {
+      const k = row + px, j = k * 4;
+      seenPx[k] = 1; d[j] = r; d[j + 1] = g; d[j + 2] = b; d[j + 3] = 255;
+      if (sy > 0) { const u = k - W; const mu = !seenPx[u] && match(u * 4); if (mu && !up) { stack.push(px, sy - 1); up = true; } else if (!mu) up = false; }
+      if (sy < H - 1) { const dn = k + W; const md = !seenPx[dn] && match(dn * 4); if (md && !down) { stack.push(px, sy + 1); down = true; } else if (!md) down = false; }
+      px++;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+clearPaper();
+
+function canDraw() {
+  if (solo) return true;
+  if (!R || !myPeer) return false;
+  if (S.phase === 'lobby') return lobbyHidden;
+  return S.phase === 'drawing' && S.drawer === myPeer;
+}
+function toXY(e) {
+  const r = pv.getBoundingClientRect();
+  return [Math.round(clamp((e.clientX - r.left) / r.width * W, 0, W)), Math.round(clamp((e.clientY - r.top) / r.height * H, 0, H))];
+}
+const newId = () => `${myPeer || 'solo'}.${++opSeq}`;
+function sendOp(op) { if (!solo) send('stroke', { turn: S.turn, op }); }
+function scheduleFlush() { if (!flushT) flushT = setTimeout(flushPen, 60); }
+function flushPen() {
+  flushT = null;
+  if (!cur || cur.t !== 'pen' || !pendingPts.length) return;
+  sendOp({ id: cur.id, t: 'pen', c: cur.c, s: cur.s, p: pendingPts });
+  pendingPts = [];
+}
+function constrain(op, shift) {
+  if (!shift) return;
+  const [x0, y0] = op.p; let dx = op.p[2] - x0, dy = op.p[3] - y0;
+  if (op.t === 'line') {
+    const ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4), len = Math.hypot(dx, dy);
+    op.p[2] = Math.round(x0 + Math.cos(ang) * len); op.p[3] = Math.round(y0 + Math.sin(ang) * len);
+  } else {
+    const m = Math.max(Math.abs(dx), Math.abs(dy));
+    op.p[2] = x0 + Math.sign(dx || 1) * m; op.p[3] = y0 + Math.sign(dy || 1) * m;
+  }
+}
+function drawPreview() {
+  pctx.clearRect(0, 0, W, H);
+  if (cur && cur.t !== 'pen') drawShape(pctx, cur);
+  if (hover && canDraw()) {
+    const sz = tool === 'eraser' ? size * 2.2 : (tool === 'fill' ? 6 : size);
+    pctx.lineWidth = 2; pctx.strokeStyle = '#141b45';
+    pctx.beginPath(); pctx.arc(hover[0], hover[1], Math.max(3, sz / 2), 0, Math.PI * 2); pctx.stroke();
+    pctx.lineWidth = 1; pctx.strokeStyle = '#ffffff';
+    pctx.beginPath(); pctx.arc(hover[0], hover[1], Math.max(3, sz / 2) + 1.5, 0, Math.PI * 2); pctx.stroke();
+  }
+}
+pv.addEventListener('pointerdown', e => {
+  if (!canDraw() || e.button > 0) return;
+  e.preventDefault();
+  try { pv.setPointerCapture(e.pointerId); } catch {}
+  const [x, y] = toXY(e);
+  redoStack = [];
+  if (tool === 'fill') { const op = { id: newId(), t: 'fill', c: color, s: 1, p: [x, y] }; ops.push(op); drawOp(op, ctx); sendOp(op); return; }
+  if (tool === 'pen' || tool === 'eraser') {
+    cur = { id: newId(), t: 'pen', c: tool === 'eraser' ? '#ffffff' : color, s: Math.round(tool === 'eraser' ? size * 2.2 : size), p: [x, y] };
+    ops.push(cur); strokePts(ctx, cur.p, cur.c, cur.s, 0); pendingPts = [x, y]; scheduleFlush();
+  } else {
+    cur = { id: newId(), t: tool, c: color, s: size, f: filled, p: [x, y, x, y] };
+  }
+});
+pv.addEventListener('pointermove', e => {
+  const [hx, hy] = toXY(e); hover = [hx, hy];
+  if (cur) {
+    if (cur.t === 'pen') {
+      const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+      const n0 = cur.p.length / 2;
+      for (const ev of (evs.length ? evs : [e])) {
+        const [x, y] = toXY(ev), L = cur.p.length;
+        if (Math.hypot(x - cur.p[L - 2], y - cur.p[L - 1]) < 1.5) continue;
+        cur.p.push(x, y); pendingPts.push(x, y);
+      }
+      if (cur.p.length / 2 > n0) { strokePts(ctx, cur.p, cur.c, cur.s, n0); scheduleFlush(); }
+    } else { cur.p[2] = hx; cur.p[3] = hy; constrain(cur, e.shiftKey); }
+  }
+  drawPreview();
+});
+const endStroke = () => {
+  if (!cur) return;
+  if (cur.t === 'pen') { clearTimeout(flushT); flushT = null; flushPen(); }
+  else { ops.push(cur); drawOp(cur, ctx); sendOp(cur); }
+  cur = null; drawPreview();
+};
+pv.addEventListener('pointerup', endStroke);
+pv.addEventListener('pointercancel', endStroke);
+pv.addEventListener('pointerleave', () => { hover = null; drawPreview(); });
+
+function myLastOpIndex() { const pre = (myPeer || 'solo') + '.'; for (let i = ops.length - 1; i >= 0; i--) if (String(ops[i].id).startsWith(pre)) return i; return -1; }
+function undo() {
+  if (!canDraw()) return;
+  const i = myLastOpIndex(); if (i < 0) return;
+  const [op] = ops.splice(i, 1); redoStack.push(op); replay();
+  if (!solo) send('stroke', { turn: S.turn, undo: op.id });
+}
+function redo() {
+  if (!canDraw()) return;
+  const op = redoStack.pop(); if (!op) return;
+  ops.push(op); drawOp(op, ctx); sendSplit(op);
+}
+function sendSplit(op) {
+  if (solo) return;
+  if (op.t !== 'pen' || op.p.length <= 400) return sendOp(op);
+  for (let i = 0; i < op.p.length; i += 400) sendOp({ ...op, p: op.p.slice(i, i + 400) });
+}
+function clearBoard() {
+  if (!canDraw()) return;
+  const op = { id: newId(), t: 'clear', c: '#ffffff', s: 1, p: [] };
+  ops.push(op); clearPaper(); sendOp(op); redoStack = [];
+}
+
+/* ---------- toolbar ---------- */
+const PALETTE = ['#000000','#ffffff','#7c7c7c','#c4c4c4','#e53935','#ff7043','#ffb300','#fdd835','#7cb342',
+                 '#2e7d32','#26c6da','#1e88e5','#3949ab','#8e24aa','#ec407a','#f8bbd0','#8d6e63','#5d4037'];
+const TOOLS = [['pen','Pen (B)'],['eraser','Eraser (E)'],['fill','Fill bucket (F)'],['line','Line (L)'],['rect','Rectangle (R)'],['ell','Ellipse (O)']];
+const SIZES = [4, 8, 16, 30];
+function buildToolbar() {
+  const tg = $('#toolGroup');
+  for (const [t, label] of TOOLS) tg.append(el('button', { class: 'tool', 'data-tool': t, title: label, 'aria-label': label, html: ICON[t], onclick: () => setTool(t) }));
+  const sg = $('#sizeGroup');
+  for (const s of SIZES) {
+    const d = Math.max(4, Math.min(22, s * .7));
+    sg.append(el('button', { class: 'tool', 'data-size': s, title: `Brush size ${s}`, 'aria-label': `Brush size ${s}`, html: `<span class="sz" style="width:${d}px;height:${d}px"></span>`, onclick: () => setSize(s) }));
+  }
+  const pal = $('#palette');
+  for (const c of PALETTE) pal.append(el('button', { class: 'pc', 'data-c': c, style: `background:${c}`, title: c, 'aria-label': `Colour ${c}`, onclick: () => setColor(c) }));
+  $('#customColor').addEventListener('input', e => setColor(e.target.value));
+  const ag = $('#actGroup');
+  ag.append(el('button', { class: 'tool', id: 'fillToggle', title: 'Filled shapes', 'aria-label': 'Filled shapes', html: ICON.filled, onclick: () => { filled = !filled; syncToolbar(); } }));
+  ag.append(el('button', { class: 'tool', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', html: ICON.undo, onclick: undo }));
+  ag.append(el('button', { class: 'tool', title: 'Redo (Ctrl+Shift+Z)', 'aria-label': 'Redo', html: ICON.redo, onclick: redo }));
+  ag.append(el('button', { class: 'tool', title: 'Clear the board', 'aria-label': 'Clear the board', html: ICON.trash, onclick: clearBoard }));
+  syncToolbar();
+}
+function setTool(t) { tool = t; syncToolbar(); }
+function setSize(s) { size = s; syncToolbar(); }
+function setColor(c) { color = c; if (tool === 'eraser') tool = 'pen'; syncToolbar(); }
+function syncToolbar() {
+  document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tool === tool));
+  document.querySelectorAll('[data-size]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.size === size));
+  document.querySelectorAll('.pc').forEach(b => b.setAttribute('aria-pressed', b.dataset.c === color));
+  const ft = $('#fillToggle'); if (ft) ft.setAttribute('aria-pressed', filled);
+  document.querySelectorAll('[data-size] .sz').forEach(s => s.style.background = tool === 'eraser' ? '#c4c4c4' : color);
+}
+buildToolbar();
+document.addEventListener('keydown', e => {
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  if (/INPUT|TEXTAREA|SELECT/.test(tag)) return;
+  if ($('#game').hidden) return;
+  const k = e.key.toLowerCase();
+  if ((e.metaKey || e.ctrlKey) && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if ((e.metaKey || e.ctrlKey) && k === 'y') { e.preventDefault(); redo(); return; }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const map = { b: 'pen', p: 'pen', e: 'eraser', f: 'fill', l: 'line', r: 'rect', o: 'ell' };
+  if (map[k] && canDraw()) { setTool(map[k]); return; }
+  if (['1','2','3','4'].includes(k) && canDraw()) { setSize(SIZES[+k - 1]); return; }
+  if (k === 'enter') { $('#chatInput').focus(); e.preventDefault(); }
+});
+
+/* ---------- reactions ---------- */
+let lastReact = 0;
+function buildReactbar() {
+  const rb = $('#reactbar');
+  for (const r of REACTS) rb.append(el('button', { class: 'react', text: r, 'aria-label': `React ${r}`, onclick: () => {
+    const now = Date.now(); if (now - lastReact < 450) return; lastReact = now; send('react', { e: r });
+  } }));
+  rb.append(el('button', { class: 'btn sm like', id: 'likeBtn', html: ICON.heart.replace('<svg', '<svg width="18" height="18"') + '<span>Love this drawing</span>', onclick: () => {
+    if (votedTurn === S.turn || S.drawer === myPeer) return;
+    votedTurn = S.turn; send('vote', { turn: S.turn }); renderTools();
+  } }));
+}
+buildReactbar();
+function floatReaction(content, name, isHeart) {
+  const f = el('div', { class: 'floater', style: `left:${8 + Math.random() * 80}%` });
+  f.append(isHeart ? el('span', { html: ICON.heart }) : el('span', { class: 'e', text: content }));
+  if (name) f.append(el('span', { class: 'n', text: name }));
+  $('#floaters').append(f);
+  setTimeout(() => f.remove(), 2500);
+}
+
+/* ---------- network helpers ---------- */
+let bannerShown = false;
+function send(topic, data) {
+  if (!R) return;
+  R.emit(topic, data).catch(() => {});
+}
+function showBanner(t) { const b = $('#banner'); b.textContent = t; b.hidden = false; }
+function toast(t) { const d = el('div', { class: 'toast', text: t }); document.body.append(d); setTimeout(() => d.remove(), 1800); }
+async function copyText(t, done = 'Copied') {
+  try { await navigator.clipboard.writeText(t); toast(done); }
+  catch { toast(t); }
+}
+
+function presences() { return R ? R.peers().filter(p => p.kind === 'viewer' && p.presence && p.presence.room === roomCode && typeof p.presence.n === 'string' && p.presence.n) : []; }
+function playerPeers() { return presences().map(p => p.peer); }
+function presenceOf(peer) { if (!R) return null; const x = R.peers().find(q => q.peer === peer); return x ? x.presence : null; }
+function infoOf(peer) {
+  if (solo) return { n: profile.n || 'You', c: profile.c, a: profile.a };
+  const pr = presenceOf(peer) || {}, sc = S.sc[peer] || {};
+  return { n: clampStr(pr.n || sc.n || 'Someone', 18), c: okColor(pr.c || sc.c), a: (pr.a ?? sc.a ?? 0) | 0 };
+}
+const nameOf = p => infoOf(p).n;
+const myOk = () => (!!(S.sc[myPeer] && S.sc[myPeer].ok)) || gotTurn === S.turn;
+
+/* ---------- host logic ---------- */
+function electHost() {
+  if (!R || !myPeer) return null;
+  return playerPeers().includes(R.hubId) ? R.hubId : null;
+}
+const inviteLink = code => /^https?:$/.test(location.protocol) ? `${location.origin}${location.pathname}?room=${encodeURIComponent(code)}` : null;
+function checkHost() {
+  if (!R || solo) return;
+  const h = electHost();
+  if (h === myPeer && !isHost) becomeHost();
+  else if (h && h !== myPeer && isHost) isHost = false;
+}
+function becomeHost() {
+  isHost = true; S.host = myPeer;
+  if (!S.members.includes(myPeer)) S.members.unshift(myPeer);
+  if (!stateReceived) { stateReceived = true; deadline = 0; }
+  reconcile(true);
+  setConn(true);
+  sys('You are the host. Keep this tab open while you play: the room closes if you leave.', 'sys');
+  commit();
+}
+function reconcile(force) {
+  if (!isHost) return;
+  let changed = !!force;
+  const ps = presences(), present = new Set(ps.map(p => p.peer));
+  const active = ['choosing', 'drawing', 'reveal'].includes(S.phase);
+  for (const p of ps) {
+    const pr = p.presence;
+    if (!S.members.includes(p.peer)) { S.members.push(p.peer); changed = true; }
+    if (active && !S.order.includes(p.peer)) { S.order.push(p.peer); changed = true; }
+    const n = clampStr(pr.n, 18), c = okColor(pr.c), a = pr.a | 0;
+    const e = S.sc[p.peer];
+    if (!e) { S.sc[p.peer] = { n, c, a, s: 0, g: 0, ok: false, st: 0, at: 0 }; changed = true; }
+    else if (e.n !== n || e.c !== c || e.a !== a) { e.n = n; e.c = c; e.a = a; changed = true; }
+  }
+  if (S.phase === 'lobby') {
+    const keep = S.members.filter(p => present.has(p));
+    if (keep.length !== S.members.length) { S.members = keep; changed = true; }
+    for (const k of Object.keys(S.sc)) if (!present.has(k)) { delete S.sc[k]; changed = true; }
+  }
+  if (S.members.length > 40) S.members = S.members.filter(p => present.has(p));
+  if (changed) commit();
+}
+function commit() {
+  if (!isHost) return;
+  S.host = myPeer; S.v = (S.v | 0) + 1;
+  scheduleSend();
+  afterState();
+}
+function scheduleSend() {
+  if (sendT) return;
+  sendT = setTimeout(() => {
+    sendT = null;
+    if (!isHost) return;
+    S.left = Math.max(0, Math.round(deadline - Date.now()));
+    send('state', S); lastBeat = Date.now();
+  }, 50);
+}
+function startGame() {
+  if (!isHost) return;
+  const present = playerPeers();
+  if (present.length < 2) return;
+  const ordered = S.members.filter(p => present.includes(p));
+  for (const p of present) if (!ordered.includes(p)) ordered.push(p);
+  S.order = ordered; S.round = 1; S.ti = 0;
+  for (const v of Object.values(S.sc)) { v.s = 0; v.g = 0; v.ok = false; v.st = 0; v.at = 0; }
+  if (customWords.length) send('words', { list: customWords });
+  beginChoosing();
+}
+function beginChoosing() {
+  const present = new Set(playerPeers());
+  if (!present.has(S.order[S.ti])) return nextTurn();
+  S.turn++; S.drawer = S.order[S.ti]; S.phase = 'choosing'; S.dur = 15000; deadline = Date.now() + 15000;
+  S.word = null; S.hints = {}; S.reveal = null; S.likes = 0; S.reason = ''; hostLikes = new Set();
+  for (const v of Object.values(S.sc)) { v.ok = false; v.g = 0; v.at = 0; }
+  commit();
+}
+function nextTurn() {
+  const present = new Set(playerPeers());
+  if (present.size < 2) { S.phase = 'podium'; S.reason = 'few'; deadline = 0; S.turn++; return commit(); }
+  let guard = 0;
+  do {
+    S.ti++;
+    if (S.ti >= S.order.length) { S.ti = 0; S.round++; }
+    guard++;
+  } while (!present.has(S.order[S.ti]) && guard < 80);
+  if (S.round > S.settings.rounds) { S.phase = 'podium'; S.reason = ''; deadline = 0; return commit(); }
+  beginChoosing();
+}
+function endTurn(reason) {
+  const present = playerPeers(), others = present.filter(p => p !== S.drawer);
+  const guessed = Object.entries(S.sc).filter(([p, v]) => p !== S.drawer && v.ok).length;
+  const mult = MULT[(S.word && S.word.d) | 0];
+  const d = S.sc[S.drawer];
+  if (d && guessed) {
+    const pts = Math.round((80 + 220 * Math.min(1, guessed / Math.max(1, others.length))) * mult);
+    d.g = (d.g | 0) + pts; d.s += pts;
+  }
+  for (const p of others) { const v = S.sc[p]; if (v && !v.ok) v.st = 0; }
+  S.phase = 'reveal'; S.reason = reason; S.dur = 7000; deadline = Date.now() + 7000;
+  commit();
+}
+function backToLobby() {
+  if (!isHost) return;
+  S.phase = 'lobby'; S.turn++; S.round = 0; S.order = []; S.drawer = null; S.word = null; S.reveal = null; deadline = 0;
+  for (const v of Object.values(S.sc)) { v.s = 0; v.g = 0; v.ok = false; v.st = 0; }
+  reconcile(true);
+}
+function hostTick(now) {
+  const present = new Set(playerPeers());
+  const active = ['choosing', 'drawing', 'reveal'].includes(S.phase);
+  if (active && present.size < 2) { S.phase = 'podium'; S.reason = 'few'; deadline = 0; return commit(); }
+  if (S.phase === 'choosing') {
+    if (!present.has(S.drawer) || now > deadline + 2500) return nextTurn();
+  } else if (S.phase === 'drawing') {
+    if (!present.has(S.drawer)) return endTurn('left');
+    const others = [...present].filter(p => p !== S.drawer);
+    if (others.length && others.every(p => S.sc[p] && S.sc[p].ok)) return endTurn('all');
+    if (now >= deadline) return endTurn('time');
+  } else if (S.phase === 'reveal') {
+    if (now >= deadline) return nextTurn();
+  }
+  if (now - lastBeat > 2500) scheduleSend();
+}
+
+/* host message handlers */
+function onPick(m) {
+  if (!isHost) return;
+  const d = m.data;
+  if (S.phase !== 'choosing' || m.peer !== S.drawer || !d || d.turn !== S.turn) return;
+  if (typeof d.h !== 'string' || typeof d.salt !== 'string' || typeof d.mask !== 'string') return;
+  S.word = { h: d.h.slice(0, 64), salt: d.salt.slice(0, 32), mask: d.mask.slice(0, 40), d: [0, 1, 2].includes(d.d) ? d.d : 1 };
+  S.phase = 'drawing'; S.dur = S.settings.time * 1000; deadline = Date.now() + S.dur; S.hints = {};
+  commit();
+}
+function onGot(m) {
+  if (!isHost) return;
+  const d = m.data;
+  if (S.phase !== 'drawing' || !d || d.turn !== S.turn) return;
+  const p = m.peer; if (p === S.drawer) return;
+  const v = S.sc[p]; if (!v || v.ok) return;
+  const rank = Object.values(S.sc).filter(x => x.ok).length;
+  const frac = clamp((deadline - Date.now()) / S.dur, 0, 1);
+  const mult = MULT[(S.word && S.word.d) | 0];
+  const pts = Math.round((60 + 340 * frac) * mult) + ([60, 30, 15][rank] || 0) + 10 * Math.min(v.st | 0, 5);
+  v.ok = true; v.g = pts; v.s += pts; v.st = (v.st | 0) + 1; v.at = rank + 1;
+  commit();
+  const others = playerPeers().filter(x => x !== S.drawer);
+  if (others.every(x => S.sc[x] && S.sc[x].ok)) endTurn('all');
+}
+function onHint(m) {
+  if (!isHost) return;
+  const d = m.data;
+  if (S.phase !== 'drawing' || m.peer !== S.drawer || !d || d.turn !== S.turn || !S.word) return;
+  const mask = Array.from(S.word.mask), i = d.i;
+  if (!Number.isInteger(i) || i < 0 || i >= mask.length || mask[i] !== '_' || typeof d.ch !== 'string') return;
+  S.hints[i] = Array.from(d.ch)[0] || '';
+  commit();
+}
+function onVote(m) {
+  const d = m.data;
+  if (!d || d.turn !== S.turn || m.peer === S.drawer) return;
+  if (!['drawing', 'reveal'].includes(S.phase)) return;
+  floatReaction('', nameOf(m.peer), true);
+  if (!isHost || hostLikes.has(m.peer)) return;
+  hostLikes.add(m.peer); S.likes++;
+  const dr = S.sc[S.drawer]; if (dr) { dr.s += 10; dr.g = (dr.g | 0) + 10; }
+  commit();
+}
+function onHello(m) {
+  if (isHost) { scheduleSend(); if (customWords.length) send('words', { list: customWords }); }
+  if (S.drawer === myPeer && ['drawing', 'reveal'].includes(S.phase) && !m.sameTab) setTimeout(sendSync, 300);
+}
+function onWords(m) {
+  if (m.sameTab || m.peer !== S.host) return;
+  const l = m.data && m.data.list;
+  if (Array.isArray(l)) customWords = l.filter(w => typeof w === 'string').map(w => clampStr(w, 30)).filter(w => norm(w).length >= 2).slice(0, 200);
+}
+
+/* everyone: state */
+function acceptHost(peer) { return !!R && peer === R.hubId; }
+function cleanSettings(s) {
+  const d = freshState().settings; if (!s || typeof s !== 'object') return d;
+  return {
+    rounds: clamp(s.rounds | 0 || d.rounds, 1, 10),
+    time: clamp(s.time | 0 || d.time, 20, 240),
+    choices: clamp(s.choices | 0 || d.choices, 2, 4),
+    hints: clamp(s.hints | 0, 0, 5),
+    cats: Array.isArray(s.cats) ? s.cats.filter(c => CATS[c]) : d.cats,
+    custom: ['off', 'mix', 'only'].includes(s.custom) ? s.custom : 'off'
+  };
+}
+function cleanState(d) {
+  const s = freshState();
+  const strs = a => Array.isArray(a) ? a.filter(x => typeof x === 'string').slice(0, 60) : [];
+  s.v = d.v | 0; s.host = typeof d.host === 'string' ? d.host : null;
+  s.phase = ['lobby', 'choosing', 'drawing', 'reveal', 'podium'].includes(d.phase) ? d.phase : 'lobby';
+  s.settings = cleanSettings(d.settings);
+  s.round = d.round | 0; s.turn = d.turn | 0; s.order = strs(d.order); s.ti = d.ti | 0;
+  s.drawer = typeof d.drawer === 'string' ? d.drawer : null;
+  s.dur = Math.max(0, +d.dur || 0); s.left = Math.max(0, +d.left || 0); s.members = strs(d.members);
+  s.sc = {};
+  if (d.sc && typeof d.sc === 'object') for (const [k, v] of Object.entries(d.sc).slice(0, 60)) {
+    if (v && typeof v === 'object') s.sc[k] = { n: clampStr(v.n, 18) || 'Someone', c: okColor(v.c), a: v.a | 0, s: +v.s || 0, g: +v.g || 0, ok: !!v.ok, st: v.st | 0, at: v.at | 0 };
+  }
+  s.word = (d.word && typeof d.word.h === 'string') ? { h: String(d.word.h).slice(0, 64), salt: String(d.word.salt || '').slice(0, 32), mask: String(d.word.mask || '').slice(0, 40), d: [0, 1, 2].includes(d.word.d) ? d.word.d : 1 } : null;
+  s.hints = {};
+  if (d.hints && typeof d.hints === 'object') for (const [k, v] of Object.entries(d.hints)) { const i = +k; if (Number.isInteger(i) && i >= 0 && i < 40 && typeof v === 'string') s.hints[i] = Array.from(v)[0] || ''; }
+  s.reveal = typeof d.reveal === 'string' ? clampStr(d.reveal, 40) : null;
+  s.likes = d.likes | 0; s.reason = typeof d.reason === 'string' ? d.reason.slice(0, 10) : '';
+  return s;
+}
+function onState(m) {
+  if (m.sameTab) return;
+  const d = m.data;
+  if (!d || typeof d !== 'object' || d.host !== m.peer) return;
+  if (!acceptHost(m.peer) || isHost) return;
+  S = cleanState(d);
+  if (revealCache && revealCache.turn === S.turn && !S.reveal) S.reveal = revealCache.word;
+  stateReceived = true;
+  deadline = Date.now() + S.left;
+  afterState();
+}
+function afterState() {
+  const turnChanged = S.turn !== seen.turn;
+  const phaseChanged = turnChanged || S.phase !== seen.phase;
+  if (turnChanged) {
+    ops = []; redoStack = []; cur = null; replay();
+    myChoices = null; picking = false; lastPick = null; hintsSent = 0; myGuess = '';
+    if (S.drawer !== myPeer || S.phase === 'choosing') myWord = null;
+    if (pendingSync && pendingSync.turn === S.turn) { ops = pendingSync.ops; replay(); pendingSync = null; }
+    flushStrokeBuf();
+  }
+  if (phaseChanged) {
+    if (S.phase === 'choosing') {
+      if (S.drawer === myPeer) { myChoices = makeChoices(); SFX.turn(); }
+      sys(`Round ${S.round} of ${S.settings.rounds}: ${S.drawer === myPeer ? 'you are' : nameOf(S.drawer) + ' is'} up next.`);
+    } else if (S.phase === 'drawing') {
+      if (S.drawer === myPeer) { setTool('pen'); sys('Start drawing! Guessers see your strokes live.'); }
+      else sys(`${nameOf(S.drawer)} is drawing.`);
+    } else if (S.phase === 'reveal') {
+      snapshot();
+      if (S.drawer === myPeer && myWord) { send('reveal', { turn: S.turn, word: myWord }); lastRevealSent = Date.now(); }
+      const msg = { all: 'Everyone guessed it!', time: "Time's up!", left: 'The artist left the game.' }[S.reason];
+      if (msg) sys(msg);
+      SFX.reveal();
+    } else if (S.phase === 'podium') {
+      SFX.end();
+      sys(S.reason === 'few' ? 'Not enough players left, so the game ended early.' : 'Game over! Check the podium.');
+    } else if (S.phase === 'lobby' && seen.phase === 'podium') {
+      gallery = []; usedWords = new Set();
+      sys('Back in the lobby.');
+    }
+  }
+  const nowOk = new Set();
+  for (const [p, v] of Object.entries(S.sc)) if (v.ok) nowOk.add(p);
+  if (!turnChanged && S.phase === 'drawing') {
+    for (const p of nowOk) if (!seenOk.has(p)) {
+      if (p === myPeer) { if (gotTurn !== S.turn) SFX.correct(); }
+      else { sys(`${nameOf(p)} guessed the word!`, 'good'); SFX.other(); }
+    }
+  }
+  if (S.reveal) {
+    usedWords.add(norm(S.reveal));
+    const g = gallery.find(x => x.turn === S.turn); if (g && !g.word) g.word = S.reveal;
+    if (seen.revealWord !== S.reveal && seen.turn === S.turn) sys(`The word was “${S.reveal}”.`);
+  }
+  const g = gallery.find(x => x.turn === S.turn); if (g) g.likes = S.likes;
+  seen = { turn: S.turn, phase: S.phase, revealWord: S.reveal };
+  seenOk = nowOk;
+  render();
+}
+function snapshot() {
+  if (!ops.length || gallery.some(x => x.turn === S.turn)) return;
+  try {
+    const c = document.createElement('canvas'); c.width = 320; c.height = 240;
+    c.getContext('2d').drawImage(cv, 0, 0, 320, 240);
+    const inf = infoOf(S.drawer);
+    gallery.push({ turn: S.turn, url: c.toDataURL('image/jpeg', .78), name: inf.n, c: inf.c, a: inf.a, word: S.drawer === myPeer ? myWord : S.reveal, likes: S.likes });
+  } catch {}
+}
+
+/* ---------- drawer helpers ---------- */
+function makeChoices() {
+  const st = S.settings, pool = [[], [], []];
+  const cats = st.cats.length ? st.cats : Object.keys(CATS);
+  const useCustom = st.custom !== 'off' && customWords.length > 0;
+  const onlyCustom = st.custom === 'only' && customWords.length >= st.choices;
+  if (!onlyCustom) for (const c of cats) (WORDS[c] || []).forEach((arr, di) => pool[di].push(...arr));
+  if (useCustom) pool[1].push(...customWords);
+  const fresh = pool.map(a => [...new Set(a)].filter(w => !usedWords.has(norm(w))));
+  const tiers = fresh.map((a, i) => a.length ? a : [...new Set(pool[i])]);
+  const want = { 2: [0, 2], 3: [0, 1, 2], 4: [0, 1, 2, 2] }[st.choices] || [0, 1, 2];
+  const out = [], taken = new Set();
+  for (const di of want) {
+    let tier = di, cand = tiers[di].filter(w => !taken.has(w));
+    if (!cand.length) { tier = 1; cand = tiers.flat().filter(w => !taken.has(w)); }
+    if (!cand.length) continue;
+    const w = pick(cand); taken.add(w);
+    out.push({ w, d: tiers[di].includes(w) ? di : tier });
+  }
+  return out;
+}
+async function pickWord(i) {
+  if (picking || !myChoices || !myChoices[i] || S.phase !== 'choosing' || S.drawer !== myPeer) return;
+  picking = true;
+  const ch = myChoices[i];
+  myWord = ch.w;
+  const salt = Math.random().toString(36).slice(2, 12);
+  const h = await hash(salt + norm(ch.w));
+  const mask = Array.from(ch.w).map(c => isLetter(c) ? '_' : c).join('');
+  lastPick = { turn: S.turn, h, salt, mask, d: ch.d };
+  send('pick', lastPick); pickSentAt = Date.now();
+  render();
+}
+function maybeHint(now) {
+  const chars = Array.from(myWord);
+  const letters = chars.filter(isLetter).length;
+  const H = Math.min(S.settings.hints, Math.floor(letters / 2));
+  if (hintsSent >= H || !S.dur) return;
+  const frac = 1 - (deadline - now) / S.dur;
+  if (frac < 0.3 + 0.6 * ((hintsSent + 1) / (H + 1))) return;
+  const idx = chars.map((c, i) => (isLetter(c) && S.hints[i] == null) ? i : -1).filter(i => i >= 0);
+  if (!idx.length) return;
+  const i = pick(idx);
+  hintsSent++;
+  send('hint', { turn: S.turn, i, ch: chars[i] });
+}
+function sendSync() {
+  if (!ops.length) return;
+  const sid = Math.random().toString(36).slice(2, 8), pieces = [];
+  for (const op of ops) {
+    if (op.t === 'pen' && op.p.length > 300) for (let i = 0; i < op.p.length; i += 300) pieces.push({ ...op, p: op.p.slice(i, i + 300) });
+    else pieces.push(op);
+  }
+  const chunks = []; let curC = [], size = 0;
+  for (const pc of pieces) {
+    const len = JSON.stringify(pc).length;
+    if (size + len > 3200 && curC.length) { chunks.push(curC); curC = []; size = 0; }
+    curC.push(pc); size += len;
+  }
+  if (curC.length) chunks.push(curC);
+  const turn = S.turn;
+  chunks.slice(0, 120).forEach((c, i) => setTimeout(() => send('sync', { turn, sid, i, n: Math.min(chunks.length, 120), ops: c }), i * 45));
+}
+
+/* ---------- strokes in ---------- */
+function cleanOp(o) {
+  if (!o || typeof o !== 'object') return null;
+  if (!['pen', 'line', 'rect', 'ell', 'fill', 'clear'].includes(o.t)) return null;
+  if (typeof o.id !== 'string' || o.id.length > 60) return null;
+  const p = Array.isArray(o.p) ? o.p.slice(0, 4000).map(v => clamp(Math.round(+v || 0), 0, W)) : [];
+  if (p.length % 2) p.pop();
+  if (o.t === 'pen' && !p.length) return null;
+  if (['line', 'rect', 'ell'].includes(o.t) && p.length < 4) return null;
+  if (o.t === 'fill' && p.length < 2) return null;
+  return { id: o.id, t: o.t, c: okColor(o.c), s: clamp(+o.s || 4, 1, 90), f: !!o.f, p };
+}
+function strokeAllowed(peer, d) {
+  if (S.phase === 'lobby') return d.op ? String(d.op.id).startsWith(peer + '.') : String(d.undo).startsWith(peer + '.');
+  return peer === S.drawer;
+}
+function applyStroke(m) {
+  const d = m.data;
+  if (!strokeAllowed(m.peer, d)) return;
+  if (d.undo != null) {
+    const i = ops.findIndex(o => o.id === d.undo);
+    if (i >= 0) { ops.splice(i, 1); replay(); }
+    return;
+  }
+  const op = cleanOp(d.op); if (!op) return;
+  const ex = ops.find(o => o.id === op.id);
+  if (ex) {
+    if (ex.t === 'pen') { const n = ex.p.length / 2; ex.p.push(...op.p); strokePts(ctx, ex.p, ex.c, ex.s, n); }
+    return;
+  }
+  ops.push(op); drawOp(op, ctx);
+}
+function onStroke(m) {
+  if (m.sameTab) return;
+  const d = m.data;
+  if (!d || typeof d.turn !== 'number') return;
+  if (d.turn > S.turn) { if (strokeBuf.length < 600) strokeBuf.push(m); return; }
+  if (d.turn !== S.turn) return;
+  applyStroke(m);
+}
+function flushStrokeBuf() {
+  const keep = [];
+  for (const m of strokeBuf) {
+    if (m.data.turn === S.turn) applyStroke(m);
+    else if (m.data.turn > S.turn) keep.push(m);
+  }
+  strokeBuf = keep;
+}
+function onSync(m) {
+  if (m.sameTab || !needSync) return;
+  const d = m.data;
+  if (!d || typeof d.sid !== 'string' || !Array.isArray(d.ops) || !Number.isInteger(d.i) || !Number.isInteger(d.n) || d.n > 120) return;
+  let e = syncParts.get(d.sid);
+  if (!e) { e = { turn: d.turn, peer: m.peer, n: d.n, parts: [] }; syncParts.set(d.sid, e); }
+  e.parts[d.i] = d.ops;
+  if (e.parts.filter(Boolean).length < e.n) return;
+  syncParts.delete(d.sid); needSync = false;
+  const assembled = [];
+  for (const part of e.parts) for (const raw of part) {
+    const op = cleanOp(raw); if (!op) continue;
+    const ex = assembled.find(o => o.id === op.id);
+    if (ex && ex.t === 'pen') ex.p.push(...op.p); else if (!ex) assembled.push(op);
+  }
+  if (e.turn === S.turn && e.peer === S.drawer) {
+    const ids = new Set(assembled.map(o => o.id));
+    ops = assembled.concat(ops.filter(o => !ids.has(o.id)));
+    replay();
+  } else if (e.turn > S.turn) pendingSync = { turn: e.turn, ops: assembled };
+}
+
+/* ---------- other messages ---------- */
+function onChat(m) {
+  const d = m.data || {};
+  const text = clampStr(d.text, 100).trim(); if (!text) return;
+  const inner = !!d.inner;
+  if (inner && S.phase === 'drawing' && !(S.drawer === myPeer || myOk() || m.sameTab)) return;
+  addLine({ kind: inner && S.phase === 'drawing' ? 'inner' : 'msg', peer: m.peer, text });
+  if (S.phase === 'drawing' && S.drawer === myPeer && myWord && !inner && !m.sameTab) {
+    const a = norm(text), b = norm(myWord);
+    if (a && a !== b && lev(a, b) <= (b.length > 7 ? 2 : 1)) send('close', { turn: S.turn, to: m.peer, text: text.slice(0, 40) });
+  }
+}
+function onClose(m) {
+  const d = m.data || {};
+  if (d.to !== myPeer || d.turn !== S.turn || m.peer !== S.drawer) return;
+  sys(`“${clampStr(d.text, 40)}” is close!`, 'close'); SFX.close();
+}
+function onReveal(m) {
+  const d = m.data || {};
+  if (m.peer !== S.drawer || typeof d.word !== 'string') return;
+  const word = clampStr(d.word, 40);
+  revealCache = { turn: d.turn, word };
+  if (d.turn !== S.turn) return;
+  if (isHost) { if (!S.reveal) { S.reveal = word; commit(); } }
+  else if (!S.reveal) { S.reveal = word; afterState(); }
+}
+function onReact(m) {
+  const d = m.data || {};
+  if (!REACTS.includes(d.e)) return;
+  floatReaction(d.e, nameOf(m.peer));
+}
+
+/* ---------- chat ---------- */
+function addLine({ kind, peer, text }) {
+  const log = $('#chatLog');
+  const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  const line = el('div', { class: 'line ' + kind });
+  if (peer != null) {
+    const inf = infoOf(peer);
+    line.append(el('span', { class: 'pd', style: `background:${inf.c}` }), el('span', { class: 'who', text: inf.n + ':' }));
+  }
+  line.append(document.createTextNode(text));
+  log.append(line);
+  while (log.children.length > 250) log.firstChild.remove();
+  if (atBottom || kind !== 'msg') log.scrollTop = log.scrollHeight;
+}
+const sys = (text, kind = 'sys') => addLine({ kind: kind === 'sys' ? 'sys' : 'sys ' + kind, text });
+$('#chatForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const inp = $('#chatInput');
+  const text = clampStr(inp.value, 100).trim(); if (!text) return;
+  inp.value = '';
+  if (solo) { addLine({ kind: 'msg', peer: 'solo', text }); return; }
+  if (S.phase === 'drawing') {
+    if (S.drawer === myPeer) {
+      if (myWord && norm(text).includes(norm(myWord))) { sys('Keep the word secret. Draw it instead!', 'warn'); return; }
+      send('chat', { text, inner: true }); return;
+    }
+    if (!myOk() && S.word) {
+      const n = norm(text);
+      if (n && await hash(S.word.salt + n) === S.word.h) {
+        gotTurn = S.turn; myGuess = text;
+        send('got', { turn: S.turn });
+        sys(`You guessed it: “${text}”`, 'good'); SFX.correct(); render();
+        return;
+      }
+    } else if (myOk() && S.word && await hash(S.word.salt + norm(text)) === S.word.h) {
+      sys("You already got it. Don't spoil it for the others!", 'warn'); return;
+    }
+    send('chat', { text, inner: myOk() }); return;
+  }
+  send('chat', { text });
+});
+
+/* ---------- rendering ---------- */
+function render() {
+  if (!R && !solo) return;
+  renderWordbar(); renderPlayers(); renderOverlay(); renderTools(); renderChatInput();
+}
+function renderWordbar() {
+  const lbl = $('#roundLabel'), wd = $('#wordDisplay');
+  wd.replaceChildren();
+  $('#roomCodeLabel').textContent = solo ? '' : roomCode;
+  if (solo) {
+    lbl.textContent = 'Sketchbook';
+    wd.append(el('span', { class: 'eyebrow', text: 'Try drawing' }), el('b', { class: 'the-word', text: practiceWord }),
+      el('button', { class: 'btn sm', text: 'New word', onclick: () => { practiceWord = pick(pick(Object.values(WORDS)).flat()); render(); } }));
+    return;
+  }
+  const ph = S.phase;
+  lbl.textContent = ph === 'lobby' ? 'Lobby' : ph === 'podium' ? 'Final scores' : `Round ${S.round} of ${S.settings.rounds}`;
+  if (ph === 'lobby') wd.append(el('span', { class: 'status-text', text: isHost ? 'Set up the game, then press Start' : 'Waiting for the host to start' }));
+  else if (ph === 'choosing') wd.append(el('span', { class: 'status-text', text: S.drawer === myPeer ? 'Pick a word to draw' : `${nameOf(S.drawer)} is choosing a word…` }));
+  else if (ph === 'drawing') {
+    if (S.drawer === myPeer && myWord) wd.append(el('span', { class: 'eyebrow', text: 'Draw this' }), el('b', { class: 'the-word', text: myWord }));
+    else if (myOk() && myGuess) wd.append(el('span', { class: 'eyebrow', text: 'You got it' }), el('b', { class: 'the-word', text: myGuess, style: 'color:var(--mint)' }));
+    else if (S.word) wd.append(slotsEl(S.word.mask, S.hints));
+  } else if (ph === 'reveal') {
+    wd.append(el('span', { class: 'eyebrow', text: 'The word was' }), el('b', { class: 'the-word', text: S.reveal || (S.drawer === myPeer ? myWord : '…') || '…' }));
+  } else if (ph === 'podium') wd.append(el('span', { class: 'status-text', text: 'Game over' }));
+  updateTimer();
+}
+function slotsEl(mask, hints) {
+  const wrap = el('div', { class: 'slots', 'aria-label': 'Word to guess' });
+  Array.from(mask).forEach((ch, i) => {
+    if (ch === '_') { const h = hints[i]; wrap.append(el('span', { class: 'slot' + (h ? ' lit' : ''), text: h || '' })); }
+    else if (ch === ' ') wrap.append(el('span', { class: 'slot gap' }));
+    else wrap.append(el('span', { class: 'slot lit-char', text: ch }));
+  });
+  const counts = mask.split(' ').map(w => Array.from(w).filter(c => c === '_').length).filter(Boolean).join(' · ');
+  wrap.append(el('span', { class: 'wcount', text: counts }));
+  return wrap;
+}
+function updateTimer() {
+  const t = $('#timer');
+  const show = !solo && ['choosing', 'drawing', 'reveal'].includes(S.phase);
+  t.hidden = !show; if (!show) return;
+  const left = Math.max(0, deadline - Date.now()), dur = S.dur || 1;
+  $('#timerNum').textContent = Math.ceil(left / 1000);
+  $('#timerBar').style.strokeDashoffset = (131.95 * (1 - clamp(left / dur, 0, 1))).toFixed(1);
+  t.classList.toggle('urgent', S.phase === 'drawing' && left < 10000);
+}
+function renderPlayers() {
+  const list = $('#playerList'); list.replaceChildren();
+  if (solo) {
+    list.append(playerRow({ peer: 'solo', inf: infoOf('solo'), sc: null, rank: null }));
+    $('#hostTools').replaceChildren();
+    return;
+  }
+  const ps = playerPeers();
+  const inGame = !['lobby'].includes(S.phase);
+  let rows = ps.map(p => ({ peer: p, inf: infoOf(p), sc: S.sc[p] }));
+  if (inGame) rows.sort((a, b) => ((b.sc && b.sc.s) || 0) - ((a.sc && a.sc.s) || 0));
+  else rows.sort((a, b) => idx(S.members, a.peer) - idx(S.members, b.peer));
+  rows.forEach((r, i) => list.append(playerRow({ ...r, rank: inGame ? i + 1 : null })));
+  const ht = $('#hostTools'); ht.replaceChildren();
+  if (isHost && ['choosing', 'drawing', 'reveal'].includes(S.phase)) {
+    ht.append(el('span', { class: 'eyebrow', text: 'Host', style: 'width:100%' }),
+      el('button', { class: 'btn sm', text: 'Skip turn', onclick: () => { if (S.phase === 'drawing') endTurn('skip'); else nextTurn(); } }),
+      el('button', { class: 'btn sm', text: 'End game', onclick: () => { S.phase = 'podium'; S.reason = ''; deadline = 0; commit(); } }));
+  }
+}
+const idx = (a, v) => { const i = a.indexOf(v); return i < 0 ? 999 : i; };
+function playerRow({ peer, inf, sc, rank }) {
+  const isMe = peer === myPeer || solo;
+  const drawing = !solo && S.drawer === peer && ['choosing', 'drawing'].includes(S.phase);
+  const ok = !!(sc && sc.ok) && S.phase === 'drawing';
+  const li = el('li', { class: 'prow' + (isMe ? ' me' : '') + (ok ? ' ok' : '') + (drawing ? ' drawing' : '') });
+  if (rank) li.append(el('span', { class: 'rank', text: '#' + rank }));
+  li.append(avatarEl(inf.c, inf.a, 34));
+  const name = el('div', { class: 'pname' }, el('span', { text: inf.n, style: 'overflow:hidden;text-overflow:ellipsis' }));
+  if (isMe) name.append(el('span', { class: 'you', text: 'you' }));
+  if (!solo && S.host === peer) name.append(el('span', { html: ICON.crown, title: 'Host', style: 'display:inline-grid' }));
+  if (drawing) name.append(el('span', { html: ICON.pencil, title: 'Drawing', style: 'display:inline-grid' }));
+  if (ok) name.append(el('span', { html: ICON.check, title: 'Guessed it', style: 'display:inline-grid' }));
+  const info = el('div', { class: 'pinfo' }, name);
+  if (sc && S.phase !== 'lobby') {
+    const line = el('div', { class: 'pscore', text: `${sc.s} pts` + (sc.st >= 2 ? ` · streak ${sc.st}` : '') });
+    info.append(line);
+  }
+  li.append(info);
+  if (sc && sc.g > 0 && ['drawing', 'reveal'].includes(S.phase)) li.append(el('span', { class: 'gain', text: '+' + sc.g }));
+  return li;
+}
+function renderTools() {
+  const cd = canDraw();
+  $('#toolbar').hidden = !cd;
+  $('#stage').classList.toggle('can-draw', cd);
+  const note = $('#tbNote');
+  note.hidden = !(cd && S.phase === 'lobby' && !solo);
+  note.textContent = 'Lobby doodle pad: everyone can draw here while you wait.';
+  const showReact = !solo && ['drawing', 'reveal'].includes(S.phase) && S.drawer !== myPeer;
+  $('#reactbar').hidden = !showReact;
+  const lb = $('#likeBtn');
+  if (lb) { lb.setAttribute('aria-pressed', votedTurn === S.turn); lb.disabled = votedTurn === S.turn; lb.querySelector('span').textContent = votedTurn === S.turn ? 'Loved it' : 'Love this drawing'; }
+}
+function renderChatInput() {
+  const inp = $('#chatInput');
+  let ph = 'Say something…';
+  if (solo) ph = 'Notes to yourself…';
+  else if (S.phase === 'drawing') ph = S.drawer === myPeer ? 'Chat with players who guessed' : myOk() ? 'You got it! Chat with the others who did' : 'Type your guess here…';
+  inp.placeholder = ph;
+  $('#chatTitle').textContent = S.phase === 'drawing' && S.drawer !== myPeer && !myOk() ? 'Guesses' : 'Chat';
+}
+
+/* ---------- overlays ---------- */
+let ovKey = null, ovUpdate = null;
+function renderOverlay() {
+  let key = null, build = null;
+  if (solo) key = null;
+  else if (!stateReceived) { key = 'connecting'; build = buildConnecting; }
+  else switch (S.phase) {
+    case 'lobby': key = lobbyHidden ? 'lobby-min' : 'lobby'; build = lobbyHidden ? buildLobbyMin : buildLobby; break;
+    case 'choosing': key = `choose:${S.turn}:${S.drawer === myPeer}:${picking}`; build = buildChoosing; break;
+    case 'reveal': key = 'reveal:' + S.turn; build = buildReveal; break;
+    case 'podium': key = 'podium:' + S.turn; build = buildPodium; break;
+  }
+  const ov = $('#overlay');
+  if (key !== ovKey) {
+    ovKey = key; ovUpdate = null; ov.replaceChildren();
+    ov.hidden = !key; ov.classList.toggle('mini', key === 'lobby-min');
+    if (build) ovUpdate = build(ov) || null;
+  }
+  $('#stage').classList.toggle('tall', !!key && key !== 'lobby-min');
+  if (ovUpdate) ovUpdate();
+}
+function buildConnecting(ov) {
+  ov.append(el('div', { class: 'ov-card center-col', style: 'max-width:340px' }, el('div', { class: 'spinner' }), el('b', { text: 'Joining the room…' }),
+    el('span', { class: 'muted', text: 'Looking for the host.', style: 'font-size:13px' })));
+}
+function buildLobbyMin(ov) {
+  ov.append(el('button', { class: 'btn sun sm', text: 'Show the lobby', onclick: () => { lobbyHidden = false; render(); } }));
+}
+function buildLobby(ov) {
+  const card = el('div', { class: 'ov-card' });
+  const head = el('div', { class: 'lobby-head' },
+    el('div', {}, el('div', { class: 'eyebrow', text: 'Room code' }), el('div', { class: 'big-code', text: roomCode })),
+    el('div', { class: 'actions' },
+      inviteLink(roomCode) ? el('button', { class: 'btn sm primary', html: ICON.copy + '<span>Copy invite link</span>', onclick: () => copyText(inviteLink(roomCode), 'Invite link copied') }) : null,
+      el('button', { class: 'btn sm', html: ICON.copy + '<span>Copy code</span>', onclick: () => copyText(roomCode) }),
+      el('button', { class: 'btn sm', text: 'Doodle while waiting', onclick: () => { lobbyHidden = true; render(); } })));
+  const invite = el('p', { class: 'muted', style: 'margin:0;font-size:14px', text: inviteLink(roomCode)
+    ? 'Send the invite link to your friends. They open it, type a name and join. No account needed.'
+    : 'Friends open this page and enter the room code.' });
+  const grid = el('div', { class: 'settings' });
+  const ctl = {};
+  const mkSel = (key, label, opts, fmt) => {
+    const s = el('select', { id: 'set-' + key });
+    opts.forEach(v => s.append(el('option', { value: v, text: fmt ? fmt(v) : String(v) })));
+    s.addEventListener('change', () => { if (!isHost) return; S.settings[key] = isNaN(+s.value) ? s.value : +s.value; commit(); });
+    ctl[key] = s;
+    grid.append(el('label', { class: 'field', for: 'set-' + key }, el('span', { text: label }), s));
+  };
+  mkSel('rounds', 'Rounds', [1, 2, 3, 4, 5, 6, 8, 10]);
+  mkSel('time', 'Draw time', [30, 45, 60, 80, 100, 120, 150, 180], v => v + ' s');
+  mkSel('choices', 'Word choices', [2, 3, 4]);
+  mkSel('hints', 'Letter hints', [0, 1, 2, 3, 4], v => v ? String(v) : 'None');
+  const chips = el('div', { class: 'chips' });
+  for (const [k, label] of Object.entries(CATS)) {
+    chips.append(el('button', { class: 'chip', 'data-cat': k, text: label, type: 'button', onclick: () => {
+      if (!isHost) return;
+      const set = new Set(S.settings.cats);
+      if (set.has(k)) { if (set.size > 1) set.delete(k); } else set.add(k);
+      S.settings.cats = Object.keys(CATS).filter(c => set.has(c)); commit();
+    } }));
+  }
+  grid.append(el('div', { class: 'field wide' }, el('span', { text: 'Word packs' }), chips));
+  const cm = el('select', { id: 'set-custom' });
+  [['off', "Don't use them"], ['mix', 'Mix with the packs'], ['only', 'Use only my words']].forEach(([v, t]) => cm.append(el('option', { value: v, text: t })));
+  cm.addEventListener('change', () => { if (!isHost) return; S.settings.custom = cm.value; commit(); });
+  const ta = el('textarea', { id: 'customWords', placeholder: 'inside jokes, friend names, anything… separated by commas', maxlength: '3000' });
+  ta.value = customText;
+  let taT = null;
+  ta.addEventListener('input', () => {
+    customText = ta.value;
+    clearTimeout(taT);
+    taT = setTimeout(() => {
+      const list = [...new Set(customText.split(/[,\n]/).map(w => clampStr(w, 30).trim()).filter(w => norm(w).length >= 2))].slice(0, 150);
+      customWords = list;
+      if (isHost) { send('words', { list }); ovUpdate && ovUpdate(); }
+    }, 500);
+  });
+  const customNote = el('span', { class: 'muted', style: 'font-size:12px;font-weight:500' });
+  const customField = el('div', { class: 'field wide' }, el('span', { text: 'Custom words' }), cm, ta, customNote);
+  grid.append(customField);
+  const startBtn = el('button', { class: 'btn primary', text: 'Start game', onclick: startGame });
+  const hint = el('span', { class: 'hint' });
+  card.append(head, invite, grid, el('div', { class: 'actions' }, startBtn, hint));
+  ov.append(card);
+  return () => {
+    const n = playerPeers().length;
+    for (const [k, s] of Object.entries(ctl)) { s.disabled = !isHost; if (document.activeElement !== s) s.value = String(S.settings[k]); }
+    chips.querySelectorAll('.chip').forEach(c => { c.setAttribute('aria-pressed', S.settings.cats.includes(c.dataset.cat)); c.disabled = !isHost; });
+    cm.disabled = !isHost; if (document.activeElement !== cm) cm.value = S.settings.custom;
+    ta.hidden = !isHost;
+    customNote.textContent = isHost
+      ? `${customWords.length} custom word${customWords.length === 1 ? '' : 's'}. Other players can't see this list.`
+      : (customWords.length ? `The host added ${customWords.length} secret custom words.` : 'The host has not added custom words.');
+    startBtn.hidden = !isHost;
+    startBtn.disabled = n < 2;
+    hint.textContent = isHost
+      ? (n < 2 ? 'You need at least one more player. Share the room code.' : `${n} players ready.`)
+      : `Only ${nameOf(S.host)} (the host) can change settings and start. ${n} player${n === 1 ? '' : 's'} here.`;
+  };
+}
+function buildChoosing(ov) {
+  const card = el('div', { class: 'ov-card' });
+  const cd = el('span', { class: 'count-big', id: 'chooseLeft' });
+  if (S.drawer === myPeer) {
+    if (!myChoices) myChoices = makeChoices();
+    card.append(el('div', { class: 'ov-title', text: picking ? 'Get ready…' : 'Your turn! Pick a word' }), cd);
+    if (!picking) {
+      const grid = el('div', { class: 'choices' });
+      myChoices.forEach((c, i) => grid.append(el('button', { class: 'choice', onclick: () => pickWord(i) },
+        el('b', { text: c.w }), el('span', { class: 'lvl lvl-' + c.d, text: `${LVL[c.d]} · ${MULT[c.d]}× points` }))));
+      card.append(grid);
+    }
+  } else {
+    const inf = infoOf(S.drawer);
+    card.classList.add('center-col'); card.style.maxWidth = '380px';
+    card.append(avatarEl(inf.c, inf.a, 84), el('div', { class: 'ov-title', text: `${inf.n} is picking a word` }), cd);
+  }
+  ov.append(card);
+  return () => {};
+}
+function buildReveal(ov) {
+  const card = el('div', { class: 'ov-card center-col', style: 'max-width:420px' });
+  const title = el('div', { class: 'eyebrow' });
+  const word = el('div', { class: 'reveal-word' });
+  const likes = el('div', { class: 'muted', style: 'display:flex;align-items:center;gap:6px;font-size:14px' });
+  const list = el('ul', { class: 'gains', style: 'width:100%' });
+  card.append(title, word, likes, list);
+  ov.append(card);
+  return () => {
+    title.textContent = { all: 'Everyone got it! The word was', time: "Time's up! The word was", left: 'The artist left. The word was', skip: 'Turn skipped. The word was' }[S.reason] || 'The word was';
+    word.textContent = S.reveal || (S.drawer === myPeer ? myWord : null) || '…';
+    likes.innerHTML = ICON.heart.replace('<svg', '<svg width="16" height="16" style="fill:var(--pink);stroke:var(--line)"');
+    likes.append(document.createTextNode(`${S.likes} ${S.likes === 1 ? 'person loved' : 'people loved'} this drawing`));
+    list.replaceChildren();
+    const rows = Object.entries(S.sc).filter(([p]) => playerPeers().includes(p) || p === S.drawer).sort((a, b) => b[1].g - a[1].g);
+    for (const [p, v] of rows) {
+      const inf = infoOf(p);
+      list.append(el('li', {}, avatarEl(inf.c, inf.a, 26),
+        el('span', { class: 'gname', text: inf.n + (p === S.drawer ? ' (drew it)' : '') }),
+        el('span', { class: 'gpts' + (v.g > 0 ? ' pos' : ''), text: v.g > 0 ? '+' + v.g : '0' })));
+    }
+  };
+}
+function buildPodium(ov) {
+  const card = el('div', { class: 'ov-card', style: 'max-width:640px' });
+  const ranked = Object.entries(S.sc).sort((a, b) => b[1].s - a[1].s);
+  card.append(el('div', { class: 'ov-title', text: ranked.length ? `${ranked[0][1].n} wins!` : 'Game over', style: 'text-align:center' }));
+  const pod = el('div', { class: 'podium' });
+  const slots = [[1, 'var(--blue)', 90], [0, 'var(--sun)', 130], [2, 'var(--pink)', 66]];
+  for (const [i, bg, h] of slots) {
+    const r = ranked[i]; if (!r) continue;
+    const [p, v] = r;
+    pod.append(el('div', { class: 'pod' }, avatarEl(v.c, v.a, i === 0 ? 64 : 48), el('div', { class: 'pn', text: v.n + (p === myPeer ? ' (you)' : '') }),
+      el('div', { class: 'ps', text: v.s + ' pts' }), el('div', { class: 'block', text: String(i + 1), style: `height:${h}px;background:${bg}` })));
+  }
+  card.append(pod);
+  if (ranked.length > 3) {
+    const rest = el('ul', { class: 'gains' });
+    ranked.slice(3).forEach(([p, v], i) => rest.append(el('li', {}, el('span', { class: 'gpts', text: '#' + (i + 4) }), avatarEl(v.c, v.a, 24), el('span', { class: 'gname', text: v.n }), el('span', { class: 'gpts', text: v.s + ' pts' }))));
+    card.append(rest);
+  }
+  const galWrap = el('div', { style: 'display:grid;gap:8px' });
+  card.append(galWrap);
+  const acts = el('div', { class: 'actions', style: 'justify-content:center' });
+  if (isHost) acts.append(el('button', { class: 'btn primary', text: 'New game', onclick: backToLobby }));
+  else acts.append(el('span', { class: 'hint', text: 'Waiting for the host to start a new game.' }));
+  acts.append(el('button', { class: 'btn', text: 'Leave room', onclick: leaveRoom }));
+  card.append(acts);
+  ov.append(card);
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const cf = el('div', { class: 'confetti' });
+    const cols = ['#ff4f8b', '#2f5bff', '#ffc929', '#14b088', '#8b5cf6'];
+    for (let i = 0; i < 70; i++) cf.append(el('i', { style: `left:${Math.random() * 100}%;background:${pick(cols)};animation-duration:${2 + Math.random() * 2.5}s;animation-delay:${Math.random() * .8}s;transform:rotate(${Math.random() * 360}deg)` }));
+    ov.append(cf); setTimeout(() => cf.remove(), 5500);
+  }
+  return () => {
+    galWrap.replaceChildren();
+    if (!gallery.length) return;
+    galWrap.append(el('h3', { text: 'Gallery' }));
+    const g = el('div', { class: 'gallery' });
+    const best = Math.max(...gallery.map(x => x.likes || 0));
+    for (const it of gallery) {
+      g.append(el('figure', {}, el('img', { src: it.url, alt: `Drawing of ${it.word || 'a mystery word'} by ${it.name}` }),
+        el('figcaption', {}, el('b', { text: it.word || '?' }), el('span', { class: 'muted', text: (it.likes ? '♥' + it.likes + ' ' : '') + it.name }))));
+      if (best > 0 && it.likes === best) g.lastChild.style.borderColor = 'var(--pink)';
+    }
+    galWrap.append(g);
+  };
+}
+function updateOverlayTimer() {
+  const c = document.getElementById('chooseLeft');
+  if (c) c.textContent = `${Math.ceil(Math.max(0, deadline - Date.now()) / 1000)} seconds left`;
+}
+
+/* ---------- tick ---------- */
+setInterval(() => {
+  if (!R || solo) return;
+  checkHost();
+  const now = Date.now(), left = Math.max(0, deadline - now);
+  updateTimer(); updateOverlayTimer();
+  if (S.phase === 'choosing' && S.drawer === myPeer) {
+    if (!picking && myChoices && left < 300) pickWord(0);
+    else if (picking && lastPick && lastPick.turn === S.turn && now - pickSentAt > 2000) { send('pick', lastPick); pickSentAt = now; }
+  }
+  if (S.phase === 'drawing' && S.drawer === myPeer && myWord) maybeHint(now);
+  if (S.phase === 'reveal' && S.drawer === myPeer && myWord && !S.reveal && now - lastRevealSent > 1500) { send('reveal', { turn: S.turn, word: myWord }); lastRevealSent = now; }
+  if (S.phase === 'drawing' && left > 0 && left <= 5000) { const sec = Math.ceil(left / 1000); if (sec !== lastTickSec) { lastTickSec = sec; SFX.tick(); } }
+  if (isHost) hostTick(now);
+}, 200);
+
+/* ---------- room lifecycle ---------- */
+function onGamePeers(ch) {
+  const meP = ch.peers.find(p => p.sameTab);
+  if (meP) myPeer = meP.peer;
+  const present = new Set(playerPeers());
+  if (Date.now() - joinedAt > 2000) {
+    for (const p of present) if (!lastPresent.has(p) && p !== myPeer) { sys(`${nameOf(p)} joined.`); SFX.join(); }
+    for (const p of lastPresent) if (!present.has(p)) sys(`${(S.sc[p] && S.sc[p].n) || 'Someone'} left.`);
+  }
+  lastPresent = present;
+  checkHost();
+  if (isHost) reconcile(false);
+  render();
+}
+function resetGameLocal() {
+  S = freshState(); stateReceived = false; isHost = false; deadline = 0; hostLikes = new Set();
+  ops = []; redoStack = []; replay(); seen = { turn: -1, phase: '' }; seenOk = new Set(); lastPresent = new Set();
+  myWord = null; myChoices = null; picking = false; gotTurn = -1; votedTurn = -1; myGuess = '';
+  gallery = []; usedWords = new Set(); strokeBuf = []; syncParts = new Map(); pendingSync = null; revealCache = null;
+  lobbyHidden = false; ovKey = null; helloSent = false; bannerShown = false;
+  $('#chatLog').replaceChildren(); $('#banner').hidden = true;
+}
+function showGame() { $('#home').hidden = true; $('#game').hidden = false; $('#app').classList.add('in-game'); $('#conn').hidden = solo; }
+function showHome() { $('#game').hidden = true; $('#home').hidden = false; $('#app').classList.remove('in-game'); $('#conn').hidden = true; }
+function myPresence() { return { n: clampStr(profile.n, 18).trim() || 'Player', c: profile.c, a: profile.a }; }
+const cleanCode = v => String(v || '').trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '').slice(0, 40);
+function setUrlRoom(code) {
+  if (!/^https?:$/.test(location.protocol)) return;
+  try { history.replaceState(null, '', code ? `?room=${encodeURIComponent(code)}` : location.pathname); } catch {}
+}
+let joining = false;
+function setJoining(on, label) {
+  joining = on;
+  const b = $('#createBtn');
+  b.disabled = on; b.textContent = on ? label : 'Create a room';
+  $('#joinForm button').disabled = on;
+}
+async function enterRoom(code, create) {
+  if (joining) return;
+  if (typeof window.Peer !== 'function') { toast("Couldn't load the connection library. Check your internet and reload."); return; }
+  if (!profile.n.trim()) { const ni = $('#nameInput'); ni.focus(); toast('Pick a name first'); return; }
+  if (!ROOM_RE.test(code)) { toast('Room codes use letters, numbers and dashes'); return; }
+  setJoining(true, create ? 'Opening your room…' : `Joining ${code}…`);
+  let net;
+  try { net = await createNet(code, create); }
+  catch (err) {
+    setJoining(false);
+    const type = err && err.type;
+    if (create && type === 'unavailable-id') return enterRoom(genCode(), true);
+    if (type === 'peer-unavailable') toast(`No open room called “${code}”. Check the code, or ask the host if their tab is still open.`);
+    else if (type === 'browser-incompatible') toast('This browser cannot connect. Try a recent Chrome, Edge, Firefox or Safari.');
+    else toast("Couldn't connect. Check your internet and try again.");
+    return;
+  }
+  setJoining(false);
+  solo = false; resetGameLocal(); roomCode = code; R = net; myPeer = net.id; usingLobby = false;
+  showGame();
+  setUrlRoom(code);
+  const T = (topic, fn) => unsubs.push(R.on(topic, m => { try { fn(m); } catch (err) { console.error(err); } }));
+  T('state', onState); T('stroke', onStroke); T('sync', onSync); T('chat', onChat); T('got', onGot); T('close', onClose);
+  T('pick', onPick); T('hint', onHint); T('reveal', onReveal); T('react', onReact); T('vote', onVote); T('hello', onHello); T('words', onWords);
+  unsubs.push(R.onPeers(onGamePeers));
+  unsubs.push(R.onConnection(c => {
+    setConn(c);
+    if (c && !helloSent && !create) { helloSent = true; setTimeout(() => { needSync = true; send('hello', {}); setTimeout(() => { needSync = false; }, 10000); }, 300); }
+  }));
+  R.onClosed(() => {
+    if (R !== net) return;
+    leaveRoom();
+    const n = $('#inviteNote'); n.hidden = false;
+    n.textContent = `The host closed room ${code}, so the game ended. Create a new room to keep playing.`;
+  });
+  joinedAt = Date.now();
+  R.presence({ ...myPresence(), room: code });
+  sys(create ? `Room ${code} is open. Copy the invite link from the lobby and send it to your friends.` : `You joined ${code}.`);
+  render();
+}
+function leaveRoom() {
+  unsubs.forEach(u => { try { u(); } catch {} }); unsubs = [];
+  if (R) R.leave().catch(() => {});
+  R = null; isHost = false; solo = false;
+  setUrlRoom(null);
+  showHome();
+}
+let leaveArmed = 0;
+$('#leaveBtn').addEventListener('click', e => {
+  if (solo) { solo = false; showHome(); return; }
+  const now = Date.now();
+  if (now - leaveArmed < 3000) { leaveRoom(); e.target.textContent = 'Leave room'; return; }
+  leaveArmed = now; e.target.textContent = isHost ? 'Click again: this closes the room for everyone' : 'Click again to leave';
+  setTimeout(() => { e.target.textContent = 'Leave room'; }, 3000);
+});
+window.addEventListener('beforeunload', e => { if (R && isHost && playerPeers().length > 1) { e.preventDefault(); e.returnValue = ''; } });
+function setConn(c) {
+  const b = $('#conn');
+  b.classList.toggle('on', !!c); b.classList.toggle('off', !c);
+  $('#connText').textContent = c ? (isHost ? 'Hosting' : 'Live') : 'Disconnected';
+}
+function enterSolo() {
+  solo = true; myPeer = 'solo'; resetGameLocal(); myPeer = 'solo';
+  practiceWord = pick(pick(Object.values(WORDS)).flat());
+  showGame(); render();
+  sys('Sketchbook mode: draw anything. Your drawings stay on this device.');
+}
+
+/* ---------- home ---------- */
+function renderMe() {
+  $('#meAvatar').innerHTML = avatarSVG(profile.c, profile.a, 70);
+  const sw = $('#swatches'); sw.replaceChildren();
+  for (const c of AV_COLORS) sw.append(el('button', { class: 'swatch', style: `background:${c}`, 'aria-label': `Colour ${c}`, 'aria-pressed': c === profile.c, onclick: () => { profile.c = c; saveProfile(); } }));
+}
+let presT = null;
+function saveProfile() {
+  store.set('profile', profile); renderMe();
+  clearTimeout(presT);
+  presT = setTimeout(() => { if (R) R.presence({ ...myPresence(), room: roomCode }); }, 300);
+}
+$('#nameInput').value = profile.n;
+$('#nameInput').addEventListener('input', e => { profile.n = clampStr(e.target.value, 18); saveProfile(); });
+$('#nameInput').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const code = cleanCode($('#codeInput').value);
+  if (invitedCode && code === invitedCode) enterRoom(code, false);
+});
+$('#shuffleAv').addEventListener('click', () => { profile.a = Math.floor(Math.random() * AV_N); saveProfile(); });
+$('#createBtn').addEventListener('click', () => { SFX.join(); enterRoom(genCode(), true); });
+$('#joinForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const code = cleanCode($('#codeInput').value);
+  if (code) enterRoom(code, false);
+});
+$('#soloBtn').addEventListener('click', enterSolo);
+renderMe();
+
+/* ---------- boot: invite links ---------- */
+let invitedCode = null;
+try { invitedCode = cleanCode(new URLSearchParams(location.search).get('room')) || null; } catch {}
+if (invitedCode && ROOM_RE.test(invitedCode)) {
+  $('#codeInput').value = invitedCode;
+  const n = $('#inviteNote'); n.hidden = false;
+  n.textContent = `You're invited to room ${invitedCode}. Type your name, then press Join.`;
+  $('#home').classList.add('invited');
+  $('#joinForm button').classList.add('primary');
+  $('#createBtn').classList.remove('primary');
+  setTimeout(() => $('#nameInput').focus(), 50);
+}
+if (typeof window.Peer !== 'function') {
+  const n = $('#inviteNote'); n.hidden = false;
+  n.textContent = "The connection library didn't load, so multiplayer won't work. Check your internet connection and reload. The sketchbook still works.";
+}
+})();
+</script>
+</body>
+</html>
