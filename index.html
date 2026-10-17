@@ -373,7 +373,7 @@ textarea{resize:vertical;min-height:64px}
   <div class="banner" id="banner" hidden></div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script>
 (() => {
 'use strict';
@@ -405,138 +405,165 @@ const isLetter = c => /[\p{L}\p{N}]/u.test(c);
 const ROOM_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 const PEER_PREFIX = 'scrawl-v1-';
 
-/* Relay (TURN) servers let players on different home or mobile networks reach the host.
-   PeerJS's built-in relays no longer exist, so we fetch credentials from a Metered.ca app.
-   Fill these two in from your Metered dashboard (TURN Server > Credentials). */
-const METERED_APP = '';   // the part before .metered.live, e.g. 'scrawl'
-const METERED_KEY = '';   // the API key shown for that app
-const STUN_SERVERS = [
-  { urls: 'stun:stun.cloudflare.com:3478' },
-  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }
-];
-let iceCache = null;
-async function getIceServers() {
-  if (iceCache) return iceCache;
-  let turn = [];
-  if (METERED_APP && METERED_KEY) {
-    try {
-      const ctl = new AbortController();
-      const t = setTimeout(() => ctl.abort(), 6000);
-      const r = await fetch(`https://${METERED_APP}.metered.live/api/v1/turn/credentials?apiKey=${encodeURIComponent(METERED_KEY)}`, { signal: ctl.signal });
-      clearTimeout(t);
-      if (r.ok) { const j = await r.json(); if (Array.isArray(j)) turn = j; }
-    } catch {}
-  }
-  iceCache = [...STUN_SERVERS, ...turn];
-  return iceCache;
+/* Rooms run over free public MQTT brokers on secure WebSockets, so they work on any network
+   that can load websites, with no accounts and no relay setup. Every message is encrypted
+   with a key derived from the room code, and the topic name is a hash of the code, so the
+   broker and anyone else listening only ever see scrambled bytes. */
+const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt'];
+const te = new TextEncoder(), td = new TextDecoder();
+const netErr = type => Object.assign(new Error(type), { type });
+async function roomKeys(code) {
+  const h = async s => new Uint8Array(await crypto.subtle.digest('SHA-256', te.encode(s)));
+  const t = await h('scrawl-topic|' + code);
+  const base = 'scrawl1/' + [...t.slice(0, 16)].map(b => b.toString(16).padStart(2, '0')).join('');
+  const key = await crypto.subtle.importKey('raw', await h('scrawl-key|' + code), 'AES-GCM', false, ['encrypt', 'decrypt']);
+  return { base, key };
 }
-
-/* ---------- peer-to-peer room: the creator's browser is the hub ---------- */
-async function createNet(code, asHost) {
-  const peerOpts = { debug: 0, config: { iceServers: await getIceServers() } };
+async function seal(key, obj) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, te.encode(JSON.stringify(obj))));
+  const out = new Uint8Array(12 + ct.length); out.set(iv); out.set(ct, 12);
+  return out;
+}
+async function unseal(key, buf) {
+  const u = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  if (u.length < 13) return null;
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: u.slice(0, 12) }, key, u.slice(12));
+  return JSON.parse(td.decode(pt));
+}
+function connectBroker(url, clientId, will) {
   return new Promise((resolve, reject) => {
-    const handlers = new Map(), peerFns = new Set(), connFns = new Set(), closeFns = new Set();
-    const conns = new Map();
-    const hubId = PEER_PREFIX + code;
-    let peer, conn = null, myId = null, isConnected = false, dead = false, settled = false;
-    let pres = new Map(), myPres = {}, list = Object.freeze([]);
-    const fail = err => { if (settled) return; settled = true; dead = true; try { peer.destroy(); } catch {} reject(err); };
-    const ok = () => { if (settled) return; settled = true; resolve(api); };
-    const deliver = (topic, data, from) => {
-      const fns = handlers.get(topic); if (!fns) return;
-      const m = { topic, data, peer: from, sameTab: from === myId, isMe: from === myId, kind: 'viewer', by: null, guest: false };
-      for (const f of [...fns]) f(m);
-    };
-    const rebuild = () => {
-      if (myId) pres.set(myId, myPres);
-      list = Object.freeze([...pres].map(([p, presence]) => Object.freeze({ peer: p, presence, sameTab: p === myId, isMe: p === myId, kind: 'viewer', by: null, guest: false })));
-      const ch = { peers: list, joined: [], left: [], updated: [] };
-      peerFns.forEach(f => f(ch));
-    };
-    const setConnected = v => { isConnected = v; connFns.forEach(f => f(v)); };
-    const broadcastPeers = () => {
-      if (myId) pres.set(myId, myPres);
-      const l = [...pres];
-      for (const c of conns.values()) if (c.open) c.send({ k: 'peers', l });
-      rebuild();
-    };
-    const api = {
-      hubId,
-      get id() { return myId; },
-      emit(topic, data) {
-        if (dead) return Promise.resolve();
-        if (asHost) {
-          setTimeout(() => deliver(topic, data, myId), 0);
-          const msg = { k: 'ev', topic, data, peer: myId };
-          for (const c of conns.values()) if (c.open) c.send(msg);
-        } else if (conn && conn.open) conn.send({ k: 'ev', topic, data });
-        return Promise.resolve();
-      },
-      on(topic, fn) {
-        if (!handlers.has(topic)) handlers.set(topic, new Set());
-        handlers.get(topic).add(fn);
-        return () => handlers.get(topic).delete(fn);
-      },
-      peers() { return list; },
-      onPeers(fn) { peerFns.add(fn); queueMicrotask(() => fn({ peers: list, joined: list, left: [], updated: [] })); return () => peerFns.delete(fn); },
-      presence(patch) {
-        const next = { ...myPres };
-        for (const [k, v] of Object.entries(patch)) { if (v === null) delete next[k]; else next[k] = v; }
-        myPres = next;
-        if (asHost) broadcastPeers();
-        else { if (conn && conn.open) conn.send({ k: 'pres', p: myPres }); rebuild(); }
-        return Promise.resolve();
-      },
-      connected() { return isConnected; },
-      onConnection(fn) { connFns.add(fn); queueMicrotask(() => fn(isConnected)); return () => connFns.delete(fn); },
-      onClosed(fn) { closeFns.add(fn); },
-      leave() { dead = true; try { peer.destroy(); } catch {} return Promise.resolve(); }
-    };
-    const timer = setTimeout(() => fail(Object.assign(new Error('timeout'), { type: 'timeout' })), 20000);
-
-    if (asHost) {
-      peer = new Peer(hubId, peerOpts);
-      peer.on('open', id => { clearTimeout(timer); myId = id; setConnected(true); rebuild(); ok(); });
-      peer.on('connection', c => {
-        c.on('open', () => { conns.set(c.peer, c); c.send({ k: 'peers', l: [...pres] }); });
-        c.on('data', msg => {
-          if (!msg || typeof msg !== 'object') return;
-          if (msg.k === 'ev' && typeof msg.topic === 'string') {
-            const out = { k: 'ev', topic: msg.topic, data: msg.data, peer: c.peer };
-            for (const o of conns.values()) if (o.open) o.send(out);
-            deliver(msg.topic, msg.data, c.peer);
-          } else if (msg.k === 'pres' && msg.p && typeof msg.p === 'object') {
-            pres.set(c.peer, msg.p); broadcastPeers();
-          }
-        });
-        const gone = () => { conns.delete(c.peer); if (pres.delete(c.peer)) broadcastPeers(); };
-        c.on('close', gone);
-        c.on('error', gone);
-      });
-      peer.on('disconnected', () => { if (!dead) { try { peer.reconnect(); } catch {} } });
-      peer.on('error', err => { if (!settled) { clearTimeout(timer); fail(err); } });
-    } else {
-      peer = new Peer(peerOpts);
-      peer.on('open', id => {
-        myId = id;
-        conn = peer.connect(hubId, { reliable: true });
-        conn.on('iceStateChanged', st => { if (st === 'failed' && !settled) { clearTimeout(timer); fail(Object.assign(new Error('ice failed'), { type: 'ice-failed' })); } });
-        conn.on('error', err => { if (!settled) { clearTimeout(timer); fail(Object.assign(err || new Error('conn'), { type: (err && err.type) || 'ice-failed' })); } });
-        conn.on('open', () => { clearTimeout(timer); setConnected(true); conn.send({ k: 'pres', p: myPres }); rebuild(); ok(); });
-        conn.on('data', msg => {
-          if (!msg || typeof msg !== 'object') return;
-          if (msg.k === 'ev' && typeof msg.topic === 'string' && typeof msg.peer === 'string') deliver(msg.topic, msg.data, msg.peer);
-          else if (msg.k === 'peers' && Array.isArray(msg.l)) {
-            pres = new Map(msg.l.filter(x => Array.isArray(x) && typeof x[0] === 'string' && x[1] && typeof x[1] === 'object'));
-            rebuild();
-          }
-        });
-        conn.on('close', () => { setConnected(false); if (!dead) closeFns.forEach(f => f()); });
-      });
-      peer.on('disconnected', () => { if (!dead && isConnected) { try { peer.reconnect(); } catch {} } });
-      peer.on('error', err => { if (!settled) { clearTimeout(timer); fail(err); } });
-    }
+    let c;
+    try { c = mqtt.connect(url, { clientId, keepalive: 20, clean: true, reconnectPeriod: 2000, connectTimeout: 8000, will, protocolVersion: 4 }); }
+    catch { reject(netErr('broker')); return; }
+    const t = setTimeout(() => { try { c.end(true); } catch {} reject(netErr('broker')); }, 9000);
+    c.once('connect', () => { clearTimeout(t); resolve(c); });
+    c.on('error', () => {});
   });
+}
+async function createNet(code, asHost, preferBroker = 0) {
+  if (!window.crypto || !crypto.subtle) throw netErr('crypto');
+  const { base, key } = await roomKeys(code);
+  const myId = 'p' + Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
+  const presTopic = `${base}/p/${myId}`, evTopic = `${base}/e`;
+  const will = { topic: presTopic, payload: new Uint8Array(0), qos: 1, retain: true };
+  const handlers = new Map(), peerFns = new Set(), connFns = new Set(), closeFns = new Set();
+  let pres = new Map(), hubs = new Set(), myPres = {}, list = Object.freeze([]);
+  let client = null, brokerIndex = 0, hubId = asHost ? myId : null, dead = false, closeT = null;
+  let sendQ = Promise.resolve(), recvQ = Promise.resolve();
+
+  const deliver = (topic, data, from) => {
+    const fns = handlers.get(topic); if (!fns) return;
+    const m = { topic, data, peer: from, sameTab: from === myId, isMe: from === myId, kind: 'viewer', by: null, guest: false };
+    for (const f of [...fns]) { try { f(m); } catch (e) { console.error(e); } }
+  };
+  const rebuild = () => {
+    pres.set(myId, myPres);
+    list = Object.freeze([...pres].map(([p, presence]) => Object.freeze({ peer: p, presence, sameTab: p === myId, isMe: p === myId, kind: 'viewer', by: null, guest: false })));
+    const ch = { peers: list, joined: [], left: [], updated: [] };
+    peerFns.forEach(f => { try { f(ch); } catch (e) { console.error(e); } });
+  };
+  const publish = (topic, obj, opts) => {
+    sendQ = sendQ.then(async () => {
+      if (!client) return;
+      const payload = obj == null ? new Uint8Array(0) : await seal(key, obj);
+      client.publish(topic, payload, opts);
+    }).catch(() => {});
+    return sendQ;
+  };
+  const publishPresence = () => publish(presTopic, { p: myPres, hub: asHost }, { qos: 1, retain: true });
+  const hostGone = () => {
+    if (closeT || dead) return;
+    closeT = setTimeout(() => { closeT = null; if (!dead && !pres.has(hubId)) closeFns.forEach(f => f()); }, 12000);
+  };
+  const onMessage = (topic, payload) => {
+    recvQ = recvQ.then(async () => {
+      if (topic === evTopic) {
+        const m = await unseal(key, payload);
+        if (!m || typeof m.f !== 'string' || typeof m.t !== 'string') return;
+        if (m.t === '__close') { if (m.f === hubId && !asHost && !dead) closeFns.forEach(f => f()); return; }
+        deliver(m.t, m.d, m.f);
+        return;
+      }
+      const id = topic.slice(base.length + 3);
+      if (!topic.startsWith(base + '/p/') || !id || id === myId) return;
+      if (!payload || !payload.length) {
+        hubs.delete(id);
+        if (pres.delete(id)) rebuild();
+        if (id === hubId && !asHost) hostGone();
+        return;
+      }
+      const m = await unseal(key, payload);
+      if (!m || typeof m !== 'object') return;
+      pres.set(id, (m.p && typeof m.p === 'object') ? m.p : {});
+      if (m.hub) { hubs.add(id); if (!asHost && !hubId) hubId = id; if (id === hubId && closeT) { clearTimeout(closeT); closeT = null; } }
+      rebuild();
+    }).catch(() => {});
+  };
+  const setConn = v => connFns.forEach(f => { try { f(v); } catch {} });
+
+  /* connect: hosts take the first broker that answers; joiners look for the host on each */
+  const order = [preferBroker, ...BROKERS.keys()].filter((v, i, a) => BROKERS[v] && a.indexOf(v) === i);
+  let found = false;
+  for (const bi of order) {
+    let c;
+    try { c = await connectBroker(BROKERS[bi], myId, will); } catch { continue; }
+    client = c; brokerIndex = bi;
+    c.on('message', onMessage);
+    await new Promise(r => c.subscribe([`${base}/p/+`, evTopic], { qos: 1 }, () => r()));
+    const waitMs = asHost ? 1500 : 4500, t0 = Date.now();
+    while (Date.now() - t0 < waitMs) {
+      await new Promise(r => setTimeout(r, 150));
+      await recvQ;
+      if (!asHost && hubId) break;
+    }
+    if (asHost) {
+      if (hubs.size) { c.end(true); client = null; throw netErr('taken'); }
+      found = true; break;
+    }
+    if (hubId) { found = true; break; }
+    c.end(true); client = null; pres = new Map(); hubs = new Set();
+  }
+  if (!client) throw netErr(asHost || order.length === 0 ? 'broker' : 'notfound');
+  if (!found) throw netErr('notfound');
+
+  let firstConnect = true;
+  client.on('connect', () => { if (firstConnect) return; publishPresence(); setConn(true); });
+  firstConnect = false;
+  client.on('offline', () => setConn(false));
+  client.on('close', () => setConn(false));
+  if (asHost) publishPresence();
+  rebuild();
+
+  return {
+    get hubId() { return hubId; },
+    get id() { return myId; },
+    brokerIndex,
+    emit(topic, data) { if (dead) return Promise.resolve(); publish(evTopic, { f: myId, t: topic, d: data }, { qos: 0 }); return Promise.resolve(); },
+    on(topic, fn) {
+      if (!handlers.has(topic)) handlers.set(topic, new Set());
+      handlers.get(topic).add(fn);
+      return () => handlers.get(topic).delete(fn);
+    },
+    peers() { return list; },
+    onPeers(fn) { peerFns.add(fn); queueMicrotask(() => fn({ peers: list, joined: list, left: [], updated: [] })); return () => peerFns.delete(fn); },
+    presence(patch) {
+      const next = { ...myPres };
+      for (const [k, v] of Object.entries(patch)) { if (v === null) delete next[k]; else next[k] = v; }
+      myPres = next; rebuild(); publishPresence();
+      return Promise.resolve();
+    },
+    connected() { return !!(client && client.connected); },
+    onConnection(fn) { connFns.add(fn); queueMicrotask(() => fn(!!(client && client.connected))); return () => connFns.delete(fn); },
+    onClosed(fn) { closeFns.add(fn); },
+    leave() {
+      if (dead) return Promise.resolve();
+      if (asHost) publish(evTopic, { f: myId, t: '__close', d: null }, { qos: 0 });
+      publish(presTopic, null, { qos: 1, retain: true });
+      dead = true;
+      return sendQ.then(() => new Promise(r => { try { client.end(false, {}, r); } catch { r(); } setTimeout(r, 1500); }));
+    }
+  };
 }
 const MULT = [1, 1.3, 1.6];
 const LVL = ['Easy', 'Medium', 'Hard'];
@@ -967,7 +994,7 @@ function electHost() {
   if (!R || !myPeer) return null;
   return playerPeers().includes(R.hubId) ? R.hubId : null;
 }
-const inviteLink = code => /^https?:$/.test(location.protocol) ? `${location.origin}${location.pathname}?room=${encodeURIComponent(code)}` : null;
+const inviteLink = code => /^https?:$/.test(location.protocol) ? `${location.origin}${location.pathname}?room=${encodeURIComponent(code)}${R && R.brokerIndex ? '&b=' + R.brokerIndex : ''}` : null;
 function checkHost() {
   if (!R || solo) return;
   const h = electHost();
@@ -1801,7 +1828,7 @@ function myPresence() { return { n: clampStr(profile.n, 18).trim() || 'Player', 
 const cleanCode = v => String(v || '').trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '').slice(0, 40);
 function setUrlRoom(code) {
   if (!/^https?:$/.test(location.protocol)) return;
-  try { history.replaceState(null, '', code ? `?room=${encodeURIComponent(code)}` : location.pathname); } catch {}
+  try { history.replaceState(null, '', code ? `?room=${encodeURIComponent(code)}${R && R.brokerIndex ? '&b=' + R.brokerIndex : ''}` : location.pathname); } catch {}
 }
 let joining = false;
 function setJoining(on, label) {
@@ -1812,20 +1839,19 @@ function setJoining(on, label) {
 }
 async function enterRoom(code, create) {
   if (joining) return;
-  if (typeof window.Peer !== 'function') { toast("Couldn't load the connection library. Check your internet and reload."); return; }
+  if (typeof window.mqtt === 'undefined') { toast("Couldn't load the connection library. Check your internet and reload."); return; }
   if (!profile.n.trim()) { const ni = $('#nameInput'); ni.focus(); toast('Pick a name first'); return; }
   if (!ROOM_RE.test(code)) { toast('Room codes use letters, numbers and dashes'); return; }
   setJoining(true, create ? 'Opening your room…' : `Joining ${code}…`);
   let net;
-  try { net = await createNet(code, create); }
+  try { net = await createNet(code, create, code === invitedCode ? invitedBroker : 0); }
   catch (err) {
     setJoining(false);
     const type = err && err.type;
-    if (create && type === 'unavailable-id') return enterRoom(genCode(), true);
-    if (type === 'peer-unavailable') toast(`No open room called “${code}”. Check the code, or ask the host if their tab is still open.`);
-    else if (type === 'browser-incompatible') toast('This browser cannot connect. Try a recent Chrome, Edge, Firefox or Safari.');
-    else if (type === 'ice-failed' || type === 'timeout') toast("Found the room, but your network couldn't reach the host. Try another network, such as mobile data instead of Wi-Fi.");
-    else toast("Couldn't connect. Check your internet and try again.");
+    if (create && type === 'taken') return enterRoom(genCode(), true);
+    if (type === 'notfound') toast(`No open room called “${code}”. Check the code, or ask the host if their tab is still open.`);
+    else if (type === 'crypto') toast('This browser cannot join rooms. Try a recent Chrome, Edge, Firefox or Safari.');
+    else toast("Couldn't reach the game servers. Check your internet and try again.");
     return;
   }
   setJoining(false);
@@ -1866,6 +1892,7 @@ $('#leaveBtn').addEventListener('click', e => {
   leaveArmed = now; e.target.textContent = isHost ? 'Click again: this closes the room for everyone' : 'Click again to leave';
   setTimeout(() => { e.target.textContent = 'Leave room'; }, 3000);
 });
+window.addEventListener('pagehide', () => { if (R) R.leave(); });
 window.addEventListener('beforeunload', e => { if (R && isHost && playerPeers().length > 1) { e.preventDefault(); e.returnValue = ''; } });
 function setConn(c) {
   const b = $('#conn');
@@ -1910,8 +1937,12 @@ $('#soloBtn').addEventListener('click', enterSolo);
 renderMe();
 
 /* ---------- boot: invite links ---------- */
-let invitedCode = null;
-try { invitedCode = cleanCode(new URLSearchParams(location.search).get('room')) || null; } catch {}
+let invitedCode = null, invitedBroker = 0;
+try {
+  const q = new URLSearchParams(location.search);
+  invitedCode = cleanCode(q.get('room')) || null;
+  invitedBroker = clamp(parseInt(q.get('b'), 10) || 0, 0, BROKERS.length - 1);
+} catch {}
 if (invitedCode && ROOM_RE.test(invitedCode)) {
   $('#codeInput').value = invitedCode;
   const n = $('#inviteNote'); n.hidden = false;
@@ -1921,7 +1952,7 @@ if (invitedCode && ROOM_RE.test(invitedCode)) {
   $('#createBtn').classList.remove('primary');
   setTimeout(() => $('#nameInput').focus(), 50);
 }
-if (typeof window.Peer !== 'function') {
+if (typeof window.mqtt === 'undefined') {
   const n = $('#inviteNote'); n.hidden = false;
   n.textContent = "The connection library didn't load, so multiplayer won't work. Check your internet connection and reload. The sketchbook still works.";
 }

@@ -10,7 +10,7 @@ A multiplayer draw-and-guess game for friends. It runs entirely in the browser: 
 2. In the lobby, click **Copy invite link** and send it to your friends.
 3. They open the link, type a name and press **Join**.
 
-Players connect to the host's browser directly over WebRTC, using [PeerJS](https://peerjs.com/) to find each other.
+Game messages travel over free public MQTT brokers (EMQX, with HiveMQ as a fallback) on secure WebSockets, so rooms work on any network that can load websites. Every message is encrypted in the browser with a key derived from the room code, so the broker only sees scrambled data.
 
 ## Features
 
