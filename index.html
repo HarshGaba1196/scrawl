@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Scrawl</title>
 <meta name="description" content="Draw it. Guess it. A multiplayer drawing game for friends. No accounts needed.">
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1162564440098273" crossorigin="anonymous"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gluten:wght@500;700;800&family=Lexend:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap">
@@ -415,13 +416,14 @@ const PEER_PREFIX = 'scrawl-v1-';
    broker and anyone else listening only ever see scrambled bytes. */
 /* Ads (Google AdSense). Paste your publisher ID and ad unit IDs from the AdSense dashboard.
    Slots stay hidden until both are filled in, and ads never appear over the drawing board. */
-const ADSENSE_CLIENT = '';                              // e.g. 'ca-pub-1234567890123456'
+const ADSENSE_CLIENT = 'ca-pub-1162564440098273';
 const AD_SLOTS = { home: '', lobby: '', podium: '' };   // ad unit IDs, e.g. '1234567890'
 let adsLoaded = false;
 const adsOn = () => /^ca-pub-\d{10,20}$/.test(ADSENSE_CLIENT);
 function loadAds() {
   if (adsLoaded || !adsOn()) return;
   adsLoaded = true;
+  if (document.querySelector('script[src*="adsbygoogle.js"]')) return;
   const s = document.createElement('script');
   s.async = true; s.crossOrigin = 'anonymous';
   s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + ADSENSE_CLIENT;
