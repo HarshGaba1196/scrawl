@@ -244,6 +244,10 @@ textarea{resize:vertical;min-height:64px}
 .chat input{flex:1;min-width:0}
 .banner{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);max-width:min(560px,calc(100% - 32px));z-index:10;
   background:var(--sun-bg);border:2px solid var(--line);border-radius:12px;box-shadow:3px 3px 0 var(--shadow);padding:10px 14px;font-size:14px}
+.ad-slot{display:grid;gap:4px;justify-items:center;width:100%;min-width:0;overflow:hidden}
+.ad-slot .ad-label{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2)}
+.ad-slot ins{display:block;width:100%;min-height:90px}
+.ad-home{grid-column:1/-1;max-width:970px;margin:0 auto;padding-top:8px;border-top:2px dashed var(--line)}
 .toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:20;background:var(--ink);color:var(--ground);padding:8px 14px;border-radius:10px;font-size:14px;font-weight:500}
 
 @media (max-width:960px){
@@ -409,6 +413,36 @@ const PEER_PREFIX = 'scrawl-v1-';
    that can load websites, with no accounts and no relay setup. Every message is encrypted
    with a key derived from the room code, and the topic name is a hash of the code, so the
    broker and anyone else listening only ever see scrambled bytes. */
+/* Ads (Google AdSense). Paste your publisher ID and ad unit IDs from the AdSense dashboard.
+   Slots stay hidden until both are filled in, and ads never appear over the drawing board. */
+const ADSENSE_CLIENT = '';                              // e.g. 'ca-pub-1234567890123456'
+const AD_SLOTS = { home: '', lobby: '', podium: '' };   // ad unit IDs, e.g. '1234567890'
+let adsLoaded = false;
+const adsOn = () => /^ca-pub-\d{10,20}$/.test(ADSENSE_CLIENT);
+function loadAds() {
+  if (adsLoaded || !adsOn()) return;
+  adsLoaded = true;
+  const s = document.createElement('script');
+  s.async = true; s.crossOrigin = 'anonymous';
+  s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + ADSENSE_CLIENT;
+  document.head.append(s);
+}
+function adSlot(name, cls = '') {
+  const id = AD_SLOTS[name];
+  if (!adsOn() || !/^\d{6,20}$/.test(id || '')) return null;
+  loadAds();
+  const ins = document.createElement('ins');
+  ins.className = 'adsbygoogle';
+  Object.entries({ 'data-ad-client': ADSENSE_CLIENT, 'data-ad-slot': id, 'data-ad-format': 'auto', 'data-full-width-responsive': 'true' }).forEach(([k, v]) => ins.setAttribute(k, v));
+  const wrap = document.createElement('div');
+  wrap.className = 'ad-slot ' + cls;
+  const label = document.createElement('span');
+  label.className = 'ad-label'; label.textContent = 'Advertisement';
+  wrap.append(label, ins);
+  requestAnimationFrame(() => { try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch {} });
+  return wrap;
+}
+
 const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt'];
 const te = new TextEncoder(), td = new TextDecoder();
 const netErr = type => Object.assign(new Error(type), { type });
@@ -1673,6 +1707,7 @@ function buildLobby(ov) {
   const startBtn = el('button', { class: 'btn primary', text: 'Start game', onclick: startGame });
   const hint = el('span', { class: 'hint' });
   card.append(head, invite, grid, el('div', { class: 'actions' }, startBtn, hint));
+  const lobbyAd = adSlot('lobby'); if (lobbyAd) card.append(lobbyAd);
   ov.append(card);
   return () => {
     const n = playerPeers().length;
@@ -1757,6 +1792,7 @@ function buildPodium(ov) {
   if (isHost) acts.append(el('button', { class: 'btn primary', text: 'New game', onclick: backToLobby }));
   else acts.append(el('span', { class: 'hint', text: 'Waiting for the host to start a new game.' }));
   acts.append(el('button', { class: 'btn', text: 'Leave room', onclick: leaveRoom }));
+  const podiumAd = adSlot('podium'); if (podiumAd) card.append(podiumAd);
   card.append(acts);
   ov.append(card);
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -1937,6 +1973,7 @@ $('#soloBtn').addEventListener('click', enterSolo);
 renderMe();
 
 /* ---------- boot: invite links ---------- */
+const homeAd = adSlot('home', 'ad-home'); if (homeAd) $('#home').append(homeAd);
 let invitedCode = null, invitedBroker = 0;
 try {
   const q = new URLSearchParams(location.search);
